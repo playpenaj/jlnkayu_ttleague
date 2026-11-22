@@ -281,7 +281,7 @@ function loadDraft(){
   try{const r=JSON.parse(localStorage.getItem(DKEY));if(r&&r.teams){const m=migrate(r);m.ko=m.ko||{};return m}}catch(e){}
   return clone(pub.snapshot);
 }
-function saveDraft(){try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}}
+function saveDraft(){try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}autoPublish()}
 function apin(){try{return sessionStorage.getItem(SKEY)||''}catch(e){return ''}}
 function setApin(v){try{if(v)sessionStorage.setItem(SKEY,v);else sessionStorage.removeItem(SKEY)}catch(e){}}
 function unlocked(){return !!apin()}
@@ -453,12 +453,19 @@ function render(){
 }
 function setTab(t){tab=t;render()}
 
+function pubStatus(){
+  if(publishing||pubTimer)return {t:'Saving…',sub:'',err:false,dirty:true};
+  if(pubMsg.err)return {t:'Not saved to the database',sub:pubMsg.t,err:true,dirty:true};
+  return {t:isDirty()?'Saving…':'All changes saved',sub:pub.publishedAt?'Guests see the version saved '+fmt(pub.publishedAt)+'. Every change is saved automatically.':'Every change is saved automatically.',err:false,dirty:isDirty()};
+}
 function pubBar(){
-  const dirty=isDirty();
-  return `<div class="pubbar ${dirty?'dirty':''}"><div class="txt"><b>${dirty?'Unpublished changes':'Everything is published'}</b>
-    <div class="muted">${pub.publishedAt?'Guests see the version published '+esc(fmt(pub.publishedAt))+'.':'Guests currently see the sample data. Nothing has been published yet.'}</div>
-    <div class="${pubMsg.err?'err':'ok'}">${esc(pubMsg.t||'')}</div></div>
-    <button class="btn" onclick="publish()" ${publishing?'disabled':''}>${publishing?'Publishing…':'Publish'}</button></div>`;
+  const p=pubStatus();
+  return `<div class="pubbar ${p.dirty?'dirty':''}" id="pubbar"><div class="txt"><b>${esc(p.t)}</b><div class="${p.err?'err':'muted'}">${esc(p.sub)}</div></div></div>`;
+}
+function refreshPubBar(){
+  const e=$('#pubbar');
+  if(e){const p=pubStatus();e.className='pubbar '+(p.dirty?'dirty':'');e.innerHTML=`<div class="txt"><b>${esc(p.t)}</b><div class="${p.err?'err':'muted'}">${esc(p.sub)}</div></div>`}
+  const h=$('#hPub');if(h&&pub)h.textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
 }
 
 function standingsCard(g){
@@ -511,7 +518,7 @@ function viewTeams(){
   }).join('');
 }
 
-/* ---------- Admin (edits the draft; Publish makes it visible to everyone) ---------- */
+/* ---------- Admin (edits the draft; changes save automatically) ---------- */
 function planHint(){
   const p=plan(), el=draft.teams.length-p.Q;
   const where=p.Q===8?'quarter-finals':p.Q===4?'semi-finals':'final';
@@ -576,13 +583,13 @@ function viewAdmin(){
     <button class="btn alt" ${dS} onclick="loadMock()">Load sample data</button></div></div>`;
 
   if(draft.matches.length){
-    h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team. Changes are kept as a draft until you publish.</p>`+
+    h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team. Changes are saved automatically.</p>`+
     draft.matches.map(x=>matchRow('lg',x.id,`${x.group} R${x.round} · ${esc(team(x.a).name)}`,esc(team(x.b).name),x)).join('')+`</div>`;
   }
 
   const defs=koDefs();
   if(defs.length){
-    h+=`<div class="card"><h2>Knockout matches</h2><p class="muted">Teams appear once their group's matches are completed. If the automatic places are not right, use the drop-downs to choose the teams yourself. Changes are kept as a draft until you publish.</p>`+
+    h+=`<div class="card"><h2>Knockout matches</h2><p class="muted">Teams appear once their group's matches are completed. If the automatic places are not right, use the drop-downs to choose the teams yourself. Changes are saved automatically.</p>`+
     defs.map(d=>{
       const x=koGet(d.id), A=koRef(d,'a'), B=koRef(d,'b');
       return overHtml(d)+matchRow('ko',d.id,`${d.title} · ${A?esc(A.name):koLabel(d.a)}`,B?esc(B.name):koLabel(d.b),x);
@@ -679,14 +686,14 @@ function applySetup(){
   if(elimChanged)draft.ko={};
   if(changed){draft.teamCount=n;draft.males=m;draft.females=f;resizeTeams(draft);draft.matches=[];draft.ko={};draft.mock=false}
   settingsOpen=false;
-  saveDraft();setMsg({setupOk:'Setup saved to draft.'});
+  saveDraft();setMsg({setupOk:'Setup saved.'});
 }
 function saveTeamsSilent(){
   document.querySelectorAll('[data-tn]').forEach(i=>{draft.teams[+i.dataset.tn].name=i.value.trim()||('Team '+(+i.dataset.tn+1))});
   document.querySelectorAll('[data-tp]').forEach(i=>{const [a,b]=i.dataset.tp.split('_');draft.teams[+a].players[+b].name=i.value.trim()});
   saveDraft();
 }
-function saveTeams(){saveTeamsSilent();setMsg({teamOk:'Teams saved to draft.'})}
+function saveTeams(){saveTeamsSilent();setMsg({teamOk:'Teams saved.'})}
 function setGroup(i,v){saveTeamsSilent();draft.teams[i].group=v;saveDraft();render()}
 function doGenerate(){
   if(draft.matches.length&&!confirmTwice('gen','err-fix','Regenerating clears all results. Press the button again to confirm.'))return;
@@ -714,7 +721,7 @@ function loadMock(){
   draft=mockState(draft.pinHash);saveDraft();setMsg({});
 }
 function clearMock(){
-  draft=blankState(draft.pinHash);saveDraft();setMsg({setupOk:'Mock data deleted. Publish to remove it for guests.'});
+  draft=blankState(draft.pinHash);saveDraft();setMsg({setupOk:'Mock data deleted.'});
 }
 async function changePin(){
   const o=$('#pOld').value,n=$('#pNew').value,c=$('#pNew2').value;
@@ -733,17 +740,27 @@ function resetAll(){
 }
 function setMsg(o){adminMsg=o;render()}
 
-/* ---------- Publish: saves the draft as a new row in ttfix_publications (PIN checked on the server) ---------- */
-async function publish(){
-  if(publishing)return;
-  publishing=true;pubMsg={t:'',err:false};render();
+/* ---------- Auto-publish: every saved change is written to ttfix_publications (PIN checked on the server) ---------- */
+let pubTimer=null, pubAgain=false;
+function autoPublish(){
+  if(!unlocked()||!pub)return;
+  clearTimeout(pubTimer);pubTimer=setTimeout(()=>{pubTimer=null;doPublish()},500);
+  refreshPubBar();
+}
+async function doPublish(){
+  if(publishing){pubAgain=true;return}
+  publishing=true;refreshPubBar();
   try{
     const snap=clone(draft);delete snap.pinHash;
     const ts=await rpc('ttfix_publish',{p_pin:apin(),p_snapshot:snap});
     if(!ts)pubMsg={t:'The PIN was not accepted (it may have been changed, or locked after wrong tries). Lock the console and enter it again.',err:true};
-    else{pub={snapshot:snap,publishedAt:ts};cachePub();pubMsg={t:'Published. Guests see it now.',err:false}}
+    else{pub={snapshot:snap,publishedAt:ts};cachePub();pubMsg={t:'',err:false}}
   }catch(e){pubMsg={t:dbMsg(e),err:true}}
-  finally{publishing=false;render()}
+  finally{
+    publishing=false;
+    if(pubAgain){pubAgain=false;doPublish();return}
+    refreshPubBar();
+  }
 }
 
 /* ---------- Boot ---------- */
