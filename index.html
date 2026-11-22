@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Table Tennis Fixture</title>
+<style>
+/* Standalone page backed by Supabase. Layout: green scoreboard header band, centred content column; Group A and B tables side by side, group fixtures, then a left-to-right knockout tree (quarter-finals, semi-finals, final). Live data merged from version b249. */
+:root{
+  --bg:#f3f6f4;--card:#ffffff;--ink:#1c2b24;--muted:#5f6f67;--line:#dfe6e2;--soft:#f6f9f7;--row:#fcfdfc;
+  --brand:#0f6b4a;--brand-fg:#ffffff;--accent-text:#0f6b4a;--danger:#d94a2b;--up:#7d8993;--live:#d94a2b;
+  --win-bg:#effaf4;--conn:#b9c7bf;--gold:#f5b301;--gold-soft:#fff4cc;--gold-soft2:#ffe08a;
+  --hd1:#0b4f38;--hd2:#0f6b4a;--m-bg:#e6eef9;--m-fg:#224466;--f-bg:#fbe7ef;--f-fg:#7a2146;
+  --out-bg:#fde9e4;--out-fg:#a6321a;
+  --warn-bg:#fff6e0;--warn-line:#f0d9a0;--input-bg:#ffffff;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1713;--card:#18231e;--ink:#e6efe9;--muted:#9db0a6;--line:#2b3a33;--soft:#1d2a24;--row:#16211c;
+  --brand:#1f8a63;--accent-text:#5fd6a4;--danger:#ef6a4c;--up:#6f7d76;--live:#d9492c;
+  --win-bg:#173326;--conn:#4a6256;--gold-soft:#3a3010;--gold-soft2:#4d3f0e;
+  --hd1:#082a1f;--hd2:#0b4a35;--m-bg:#1e2d45;--m-fg:#b9d0f5;--f-bg:#43202f;--f-fg:#f5b9d0;
+  --out-bg:#4a2219;--out-fg:#f5b4a4;
+  --warn-bg:#2f2810;--warn-line:#5a4a1a;--input-bg:#101a15;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1713;--card:#18231e;--ink:#e6efe9;--muted:#9db0a6;--line:#2b3a33;--soft:#1d2a24;--row:#16211c;
+  --brand:#1f8a63;--accent-text:#5fd6a4;--danger:#ef6a4c;--up:#6f7d76;--live:#d9492c;
+  --win-bg:#173326;--conn:#4a6256;--gold-soft:#3a3010;--gold-soft2:#4d3f0e;
+  --hd1:#082a1f;--hd2:#0b4a35;--m-bg:#1e2d45;--m-fg:#b9d0f5;--f-bg:#43202f;--f-fg:#f5b9d0;
+  --out-bg:#4a2219;--out-fg:#f5b4a4;
+  --warn-bg:#2f2810;--warn-line:#5a4a1a;--input-bg:#101a15;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);font-size:15px;line-height:1.45;background:var(--bg);color:var(--ink)}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{background:linear-gradient(135deg,var(--hd1),var(--hd2));color:#fff;text-align:center;
+  padding-top:22px}
+header h1{margin:0;font-size:1.6rem;text-wrap:balance}
+header p{margin:6px 0 0;opacity:.9}
+header .pub{font-size:.82rem;opacity:.85;margin:6px 0 14px}
+nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap}
+nav button{background:transparent;border:0;color:#cfe8dd;padding:10px 18px;font:inherit;font-size:.95rem;cursor:pointer;border-bottom:3px solid transparent}
+nav button.active{color:#fff;border-color:#ffb199;font-weight:600}
+main{padding-block:16px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;min-width:0}
+.card h2{margin:0 0 12px;font-size:1.1rem}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>label{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;font-size:.85rem;color:var(--muted);gap:4px}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--input-bg);color:var(--ink);min-width:0}
+input[type=number]{width:100%}
+button.btn{background:var(--brand);color:var(--brand-fg);border:0;padding:9px 16px;border-radius:8px;font:inherit;cursor:pointer}
+button.btn.alt{background:var(--card);color:var(--accent-text);border:1px solid var(--accent-text)}
+button.btn.danger{background:var(--danger);color:#fff}
+button.btn.dangeralt{background:var(--card);color:var(--danger);border:1px solid var(--danger)}
+button.btn[disabled]{opacity:.6;cursor:default}
+.actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+td.l,th.l{text-align:left}
+tr.out td{opacity:.55}
+tr.out td:last-child{opacity:1}
+.qb{font-size:.68rem;padding:2px 8px;border-radius:99px;white-space:nowrap;font-weight:600}
+.qb.q{background:var(--win-bg);color:var(--accent-text)}
+.qb.o{background:var(--out-bg);color:var(--out-fg)}
+.grp2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:16px;margin-bottom:16px}
+.grp2 .card{margin-bottom:0}
+.gblock+.gblock{margin-top:18px;padding-top:8px;border-top:1px solid var(--line)}
+.gh{margin:6px 0 10px;font-size:1rem}
+.round{margin-bottom:14px}
+.round h3{margin:0 0 8px;font-size:.9rem;color:var(--accent-text)}
+.match{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--row)}
+.match .t{font-weight:500;min-width:0}
+.match .t.win{font-weight:700;color:var(--accent-text)}
+.score{font-weight:700;font-size:1.1rem;min-width:56px;text-align:center;font-variant-numeric:tabular-nums}
+.badge{font-size:.72rem;padding:3px 9px;border-radius:99px;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.badge.Upcoming{background:var(--up)}.badge.Live{background:var(--live);animation:p 1.4s infinite}.badge.Completed{background:var(--brand)}
+@keyframes p{50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.badge.Live{animation:none}}
+.teamgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:12px}
+.team{border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+.team h3{margin:0 0 8px;font-size:1rem}
+.team ul{list-style:none;margin:0;padding:0}
+.team li{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:.92rem}
+.g{font-size:.72rem;padding:2px 8px;border-radius:99px;background:var(--m-bg);color:var(--m-fg);white-space:nowrap}
+.g.F{background:var(--f-bg);color:var(--f-fg)}
+.muted{color:var(--muted);font-size:.88rem}
+.pin{max-width:320px;margin:30px auto;text-align:center}
+.pin input{width:100%;text-align:center;letter-spacing:.4em;font-size:1.3rem;margin:10px 0}
+.err{color:var(--danger);min-height:1.2em;font-size:.88rem}
+.ok{color:var(--accent-text);min-height:1.2em;font-size:.88rem}
+.edit-team{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+.edit-team .tline{display:flex;gap:8px}
+.edit-team .tline input{flex:1;min-width:0;font-weight:600}
+.edit-team .pl{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-top:8px}
+.mrow{display:grid;grid-template-columns:1fr 54px 14px 54px 1fr 110px;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:.9rem}
+.mrow>span{min-width:0}
+.mrow input{padding:6px;text-align:center}
+.mrow.locked{opacity:.5;background:var(--soft)}
+.mrow.locked input,.mrow.locked select{cursor:not-allowed}
+.unlock{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0 8px;border-bottom:1px solid var(--line)}
+.unlock input{width:150px;text-align:center;letter-spacing:.3em}
+.unlock .muted{flex:1 1 auto}
+.unlock .btn{padding:6px 14px}
+.flt{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.flt button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:5px 14px;cursor:pointer;font:inherit;font-size:.85rem}
+.flt button.on{background:var(--brand);color:var(--brand-fg);border-color:var(--brand)}
+.banner{background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:.88rem}
+.banner.mock{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pubbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;background:var(--card)}
+.pubbar.dirty{background:var(--warn-bg);border-color:var(--warn-line)}
+.pubbar .txt{min-width:0}
+.over{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 0 4px;margin-top:6px;border-top:1px solid var(--line)}
+.over b{flex:1 1 100%;font-size:.88rem}
+.over label{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:4px}
+/* knockout tree: columns are rounds, every match cell in a column shares the column height equally so each match sits level with the pair that feeds it */
+.bracket-wrap{overflow-x:auto;padding:8px 4px 12px}
+.bracket{display:flex;align-items:stretch;gap:48px;width:max-content;margin:0 auto}
+.rcol{display:flex;flex-direction:column}
+.rcol h4{margin:0 0 10px;text-align:center;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mlist{flex:1;display:flex;flex-direction:column}
+.m{flex:1;display:flex;align-items:center;position:relative;width:230px;min-height:124px}
+.m .node{width:100%}
+.rcol.has-next .m::after{content:'';position:absolute;left:100%;width:24px;border-right:2px solid var(--conn)}
+.rcol.has-next .m:nth-child(odd)::after{top:50%;height:50%;border-top:2px solid var(--conn)}
+.rcol.has-next .m:nth-child(even)::after{bottom:50%;height:50%;border-bottom:2px solid var(--conn)}
+.rcol.has-prev .m::before{content:'';position:absolute;right:100%;top:50%;width:24px;border-top:2px solid var(--conn)}
+.node{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--row)}
+.node .nh{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 10px;font-size:.75rem;color:var(--muted);border-bottom:1px solid var(--line);background:var(--soft);border-radius:10px 10px 0 0}
+.nrow{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;font-size:.92rem;gap:8px}
+.nrow+.nrow{border-top:1px dashed var(--line)}
+.nrow .nm{min-width:0;overflow-wrap:anywhere}
+.nrow.win{background:var(--win-bg);font-weight:700;color:var(--accent-text)}
+.nrow .tbd{color:var(--muted);font-weight:400}
+.nrow b{min-width:18px;text-align:right;font-variant-numeric:tabular-nums}
+.seed{font-size:.68rem;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:6px}
+.nrow.win .seed{color:inherit}
+.node.final{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-soft)}
+.champ{margin:14px auto 0;text-align:center;background:linear-gradient(135deg,var(--gold-soft),var(--gold-soft2));border:1px solid var(--gold);border-radius:10px;padding:12px;font-weight:700;max-width:380px;color:var(--ink)}
+.champ span{font-size:1.5rem}
+.card.result{text-align:center;background:linear-gradient(135deg,var(--gold-soft),var(--gold-soft2));border-color:var(--gold);color:var(--ink)}
+.card.result .muted{color:var(--ink);opacity:.75}
+.card.result h2{font-size:1.5rem;margin:4px 0 10px}
+.trophy{font-size:2.2rem;line-height:1}
+ul.res{list-style:none;margin:0 auto;padding:0;max-width:440px;text-align:left;font-size:.92rem}
+ul.res li{padding:4px 0;border-top:1px solid rgba(128,128,128,.25)}
+@media(max-width:640px){
+  .bracket{flex-direction:column;width:100%;gap:18px}
+  .mlist{flex:none}
+  .m{width:100%;min-height:0;flex:none;margin-bottom:8px}
+  .m::before,.m::after{display:none!important}
+  .match{grid-template-columns:1fr auto 1fr}
+  .match .badge{grid-column:1/-1;justify-self:center}
+  .mrow{grid-template-columns:1fr 46px 10px 46px 1fr}
+  .mrow select{grid-column:1/-1}
+}
+</style></head>
+<body>
+<div id="root"></div>
+<script>
+/* ---------- Supabase connection ----------
+   The anon key is a public key: it is safe in the page ONLY because the tables have row level
+   security and every write goes through PIN-checked functions (see supabase-setup.sql).
+   Never put the service_role key in this file. */
+const SUPABASE_URL = "https://gdvbplbqehrtrgiwwcja.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkdmJwbGJxZWhydHJnaXd3Y2phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMzExOTEsImV4cCI6MjEwNTgwNzE5MX0.w61-EWRvERE2QzXTKMifXp63Pqq5BFgMDKx99k3LPkY";
+const DKEY='ttfixture_draft_sb1', SKEY='ttfixture_admin_sb', CKEY='ttfixture_pubcache_sb';
+let dbErr='';
+async function sb(path,opt){
+  opt=opt||{};
+  const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{method:opt.method||'GET',
+    headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY,'Content-Type':'application/json'},
+    body:opt.body!==undefined?JSON.stringify(opt.body):undefined});
+  const t=await r.text(); let j=null; try{j=t?JSON.parse(t):null}catch(e){}
+  if(!r.ok){const e=new Error((j&&j.message)||('HTTP '+r.status));e.status=r.status;e.code=j&&j.code;throw e}
+  return j;
+}
+const rpc=(fn,args)=>sb('rpc/'+fn,{method:'POST',body:args});
+function dbMsg(e){
+  if(e&&(e.code==='PGRST205'||e.code==='PGRST202'||e.status===404))return 'The database is not set up yet. Run supabase-setup.sql in the Supabase SQL editor.';
+  if(e&&(e.status===401||e.status===403))return 'Supabase rejected the request. Check the URL and anon key.';
+  return 'Could not reach Supabase. Check the connection.';
+}
+async function checkPin(v){
+  try{return {ok:(await rpc('ttfix_check_pin',{p_pin:v}))===true}}
+  catch(e){return {ok:false,msg:dbMsg(e)}}
+}
+const BADPIN='Incorrect PIN (five wrong tries lock it for 15 minutes).';
+const GROUPS=['A','B'];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const fmt=iso=>{try{return new Date(iso).toLocaleString(undefined,{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'})}catch(e){return iso}};
+
+let pub, draft, state, tab='fixtures', filter='All', adminMsg={}, pubMsg={t:'',err:false}, publishing=false;
+let openM={}, askId=null, askErr='';
+let settingsOpen=false, askSet=false, setErr='';
+
+/* ---------- State builders ---------- */
+function slots(s){return s.males+s.females}
+/* Teams without a group: the first half go to Group A (teams 1-5 of 10), the rest to Group B */
+function ensureGroups(s){
+  const half=Math.ceil(s.teams.length/2);
+  s.teams.forEach((t,i)=>{ if(t.group!=='A'&&t.group!=='B')t.group=i<half?'A':'B'; });
+}
+function resizeTeams(s){
+  while(s.teams.length<s.teamCount)s.teams.push({id:Date.now()+s.teams.length,name:'Team '+(s.teams.length+1),players:[]});
+  s.teams.length=s.teamCount;
+  s.teams.forEach(t=>{
+    const old=t.players||[];
+    t.players=Array.from({length:slots(s)},(_,i)=>({name:(old[i]&&old[i].name)||'',gender:i<s.males?'M':'F'}));
+  });
+  ensureGroups(s);
+}
+function blankState(pinHash){
+  const s={v:3,title:'Table Tennis Tournament',location:'',date:'',teamCount:10,males:1,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:false};
+  resizeTeams(s);return s;
+}
+function mockState(pinHash){
+  const names=['Smash Bros','Spin Doctors','Net Ninjas','Paddle Pros','Rally Kings','Topspin Titans','Loop Legends','Chop Squad','Edge Riders','Serve Sharks'];
+  const M=['Arun','Wei Ming','Daniel','Rahul','Kenji','Marcus','Ivan','Hassan','Lucas','Raj','Tan','Peter','Jun','Ethan','Omar','Vikram','Ryo','Noah','Sam','Felix'];
+  const F=['Mei','Priya','Sara','Aiko','Nina','Lena','Hana','Zoe','Ria','Cleo'];
+  const strength=[10,7,9,3,6,2,8,5,4,1];
+  const s={v:3,title:'Singapore Open Table Tennis 2026',location:'Kallang Sports Hall, Singapore',date:'',teamCount:10,males:2,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:true};
+  names.forEach((n,i)=>s.teams.push({id:i+1,name:n,players:[{name:M[2*i],gender:'M'},{name:M[2*i+1],gender:'M'},{name:F[i],gender:'F'}]}));
+  generate(s);
+  s.matches.forEach(m=>{
+    const sa=strength[m.a-1], sb=strength[m.b-1], lose=(m.a+m.b)%3;
+    m.status='Completed';
+    if(sa>sb){m.sa=3;m.sb=lose}else{m.sb=3;m.sa=lose}
+  });
+  s.ko={qf1:{sa:3,sb:1,status:'Completed'},qf2:{sa:3,sb:2,status:'Completed'},qf3:{sa:2,sb:3,status:'Completed'},qf4:{sa:3,sb:0,status:'Completed'},
+        sf1:{sa:3,sb:1,status:'Completed'},sf2:{sa:1,sb:1,status:'Live'},final:{sa:0,sb:0,status:'Upcoming'}};
+  return s;
+}
+/* Older saves: v1 had one big league with no groups; v2 split teams A/B alternately. Sample data is rebuilt; real data keeps its teams. */
+function migrate(s){
+  if(!s||s.v===3)return s;
+  if(s.mock){
+    const m=mockState(s.pinHash);
+    ['title','location','date'].forEach(k=>{if(s[k])m[k]=s[k]});
+    return m;
+  }
+  const had=s.matches&&s.matches.length;
+  const began=(s.matches||[]).some(m=>m.status!=='Upcoming')||Object.values(s.ko||{}).some(k=>k&&k.status&&k.status!=='Upcoming');
+  if(!s.v||!began){
+    if(!s.v){s.elim=2;s.date=s.date||'';s.matches=[];s.ko={}}
+    s.teams.forEach(t=>{delete t.group});
+    ensureGroups(s);
+    if(!s.v){if(had)generate(s)}else if(had&&!began)generate(s);
+  }
+  s.v=3;
+  return s;
+}
+async function fetchPub(){
+  const rows=await sb('ttfix_publications?select=published_at,snapshot&order=published_at.desc,id.desc&limit=1');
+  if(rows&&rows.length&&rows[0].snapshot&&rows[0].snapshot.teams){
+    const s=migrate(rows[0].snapshot);s.ko=s.ko||{};
+    return {snapshot:s,publishedAt:rows[0].published_at};
+  }
+  return {snapshot:mockState(),publishedAt:null};
+}
+function cachePub(){try{localStorage.setItem(CKEY,JSON.stringify(pub))}catch(e){}}
+async function refreshPub(first){
+  try{
+    const p=await fetchPub();dbErr='';
+    if(!pub||pub.publishedAt!==p.publishedAt){
+      const firstLoad=!pub;
+      pub=p;cachePub();
+      if(!draft)draft=loadDraft();
+      if(!firstLoad&&unlocked()&&$('#hPub'))$('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
+      else render();
+    }else if(!draft){draft=loadDraft();render()}
+  }catch(e){
+    if(!first)return;
+    dbErr=dbMsg(e);
+    if(!pub){try{const c=JSON.parse(localStorage.getItem(CKEY));if(c&&c.snapshot&&c.snapshot.teams)pub=c}catch(x){}}
+    if(pub&&!draft)draft=loadDraft();
+    render();
+  }
+}
+function loadDraft(){
+  try{const r=JSON.parse(localStorage.getItem(DKEY));if(r&&r.teams){const m=migrate(r);m.ko=m.ko||{};return m}}catch(e){}
+  return clone(pub.snapshot);
+}
+function saveDraft(){try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}}
+function apin(){try{return sessionStorage.getItem(SKEY)||''}catch(e){return ''}}
+function setApin(v){try{if(v)sessionStorage.setItem(SKEY,v);else sessionStorage.removeItem(SKEY)}catch(e){}}
+function unlocked(){return !!apin()}
+/* Canonical comparison: the database may reorder keys, and the PIN no longer lives in the data */
+function stable(o){
+  if(Array.isArray(o))return '['+o.map(stable).join(',')+']';
+  if(o&&typeof o==='object')return '{'+Object.keys(o).filter(k=>k!=='pinHash'&&o[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+stable(o[k])).join(',')+'}';
+  return JSON.stringify(o);
+}
+function isDirty(){return !!pub&&stable(draft)!==stable(pub.snapshot)}
+
+/* ---------- Group round robin (circle method), one per group ---------- */
+function rr(ids,g,out,limit){
+  const a=ids.slice(); if(a.length%2)a.push(null);
+  const n=a.length; let arr=a;
+  const opp=ids.length-1, rounds=(limit>0&&limit<opp)?limit:n-1;
+  for(let r=0;r<rounds;r++){
+    for(let i=0;i<n/2;i++){
+      const x=arr[i],y=arr[n-1-i];
+      if(x!==null&&y!==null)out.push({id:g+'_'+r+'_'+i,group:g,round:r+1,a:x,b:y,sa:0,sb:0,status:'Upcoming'});
+    }
+    arr=[arr[0],arr[n-1],...arr.slice(1,n-1)];
+  }
+}
+function generate(s){
+  ensureGroups(s);
+  const out=[];
+  GROUPS.forEach(g=>rr(s.teams.filter(t=>t.group===g).map(t=>t.id),g,out,s.limit||0));
+  s.matches=out;s.ko={};
+}
+const team=id=>state.teams.find(t=>t.id===id)||{name:'?'};
+
+function standings(g){
+  const rows=state.teams.filter(t=>t.group===g).map(t=>({t,p:0,w:0,l:0,pts:0}));
+  const by=Object.fromEntries(rows.map(r=>[r.t.id,r]));
+  state.matches.filter(x=>x.group===g&&x.status==='Completed').forEach(x=>{
+    const A=by[x.a],B=by[x.b];if(!A||!B)return;
+    A.p++;B.p++;
+    if(x.sa>x.sb){A.w++;B.l++;A.pts+=1}
+    else if(x.sb>x.sa){B.w++;A.l++;B.pts+=1}
+  });
+  return rows.sort((a,b)=>b.pts-a.pts||a.t.name.localeCompare(b.t.name));
+}
+function groupDone(g){
+  const ms=state.matches.filter(m=>m.group===g);
+  return ms.length>0&&ms.every(m=>m.status==='Completed');
+}
+/* How many teams reach the knockout stage, and whether the tree can be drawn */
+function plan(){
+  const n=state.teams.length, Q=n-(state.elim??2);
+  const ga=state.teams.filter(t=>t.group==='A').length, gb=state.teams.filter(t=>t.group==='B').length;
+  const ok=[2,4,8].includes(Q)&&ga>=Q/2&&gb>=Q/2;
+  return {n,Q,ga,gb,ok,q:ok?Q/2:0};
+}
+
+/* ---------- Knockout tree ---------- */
+function koDefs(){
+  const p=plan();
+  if(!state.matches.length||!p.ok)return [];
+  const S=(grp,rank)=>({grp,rank}), W=id=>({win:id});
+  if(p.Q===8)return [
+    {id:'qf1',title:'Quarter-final 1',round:'Quarter-finals',a:S('A',1),b:S('B',4)},
+    {id:'qf2',title:'Quarter-final 2',round:'Quarter-finals',a:S('B',2),b:S('A',3)},
+    {id:'qf3',title:'Quarter-final 3',round:'Quarter-finals',a:S('A',2),b:S('B',3)},
+    {id:'qf4',title:'Quarter-final 4',round:'Quarter-finals',a:S('B',1),b:S('A',4)},
+    {id:'sf1',title:'Semi-final 1',round:'Semi-finals',a:W('qf1'),b:W('qf2')},
+    {id:'sf2',title:'Semi-final 2',round:'Semi-finals',a:W('qf3'),b:W('qf4')},
+    {id:'final',title:'Final',round:'Final',a:W('sf1'),b:W('sf2')}];
+  if(p.Q===4)return [
+    {id:'sf1',title:'Semi-final 1',round:'Semi-finals',a:S('A',1),b:S('B',2)},
+    {id:'sf2',title:'Semi-final 2',round:'Semi-finals',a:S('B',1),b:S('A',2)},
+    {id:'final',title:'Final',round:'Final',a:W('sf1'),b:W('sf2')}];
+  return [{id:'final',title:'Final',round:'Final',a:S('A',1),b:S('B',1)}];
+}
+const koGet=id=>state.ko[id]||{sa:0,sb:0,status:'Upcoming'};
+function koRef(d,side){
+  const o=state.ko[d.id]&&state.ko[d.id]['t'+side];
+  if(o){const t=state.teams.find(t=>t.id===o);if(t)return t}
+  const r=d[side];
+  if(r.grp){
+    if(!groupDone(r.grp))return null;
+    const row=standings(r.grp)[r.rank-1];
+    return row?row.t:null;
+  }
+  return koWinner(r.win);
+}
+function koLabel(r){return r.grp?'Group '+r.grp+' #'+r.rank:'Winner '+r.win.toUpperCase()}
+function koWinner(id){
+  const d=koDefs().find(x=>x.id===id);if(!d)return null;
+  const m=koGet(id);
+  if(m.status!=='Completed'||m.sa===m.sb)return null;
+  return m.sa>m.sb?koRef(d,'a'):koRef(d,'b');
+}
+function koLoser(id){
+  const d=koDefs().find(x=>x.id===id);if(!d)return null;
+  const m=koGet(id);
+  if(m.status!=='Completed'||m.sa===m.sb)return null;
+  return m.sa>m.sb?koRef(d,'b'):koRef(d,'a');
+}
+function eventDate(){
+  const d=state.date||(state.ko.final&&state.ko.final.date);
+  if(!d)return '';
+  try{return new Date(d+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}catch(e){return d}
+}
+function resultsHtml(){
+  const w=koWinner('final');if(!w)return '';
+  const defs=koDefs(), fd=defs.find(x=>x.id==='final');
+  const l=koLoser('final'), f=koGet('final'), A=koRef(fd,'a'), B=koRef(fd,'b'), dt=eventDate();
+  const grp=GROUPS.map(g=>{const r=standings(g)[0];return r&&groupDone(g)?`<li>Group ${g} winner: ${esc(r.t.name)}</li>`:''}).join('');
+  const prev=defs.filter(d=>d.id!=='final').map(d=>{
+    const m=koGet(d.id), a=koRef(d,'a'), b=koRef(d,'b');
+    return m.status==='Completed'&&a&&b?`<li>${d.title}: ${esc(a.name)} ${m.sa}–${m.sb} ${esc(b.name)}</li>`:'';
+  }).join('');
+  return `<div class="card result"><div class="trophy">🏆</div><div class="muted">Tournament winner</div><h2>${esc(w.name)}</h2>
+    <ul class="res">
+      <li><b>Event:</b> ${esc(state.title||'Table Tennis Tournament')}</li>
+      ${dt?`<li><b>Date:</b> ${esc(dt)}</li>`:''}
+      ${state.location?`<li><b>Location:</b> ${esc(state.location)}</li>`:''}
+      <li><b>Final:</b> ${esc(A?A.name:'')} ${f.sa}–${f.sb} ${esc(B?B.name:'')}</li>
+      ${l?`<li><b>Runner-up:</b> ${esc(l.name)}</li>`:''}
+      ${grp}${prev}
+    </ul></div>`;
+}
+function koNode(d){
+  const m=koGet(d.id), A=koRef(d,'a'), B=koRef(d,'b'), w=koWinner(d.id);
+  const row=(T,side,sc)=>{
+    const r=d[side], isW=w&&T&&w.id===T.id;
+    const ov=state.ko[d.id]&&state.ko[d.id]['t'+side];
+    const tag=r.grp&&!ov?`<small class="seed">${r.grp}${r.rank}</small>`:'';
+    return `<div class="nrow ${isW?'win':''}"><span class="nm">${tag}${T?esc(T.name):'<i class="tbd">'+koLabel(r)+'</i>'}${isW?' 🏆':''}</span><b>${m.status==='Upcoming'?'':sc}</b></div>`;
+  };
+  return `<div class="node ${d.id==='final'?'final':''}"><div class="nh"><span>${d.title}</span><span class="badge ${m.status}">${m.status}</span></div>${row(A,'a',m.sa)}${row(B,'b',m.sb)}</div>`;
+}
+function bracketHtml(){
+  const defs=koDefs(), p=plan();
+  if(!state.matches.length)return '<p class="muted">Generate fixtures to see the knockout tree.</p>';
+  if(!defs.length)return `<p class="muted">The knockout tree needs 8, 4 or 2 qualifying teams, with enough teams in each group. Right now ${p.Q} would qualify (Group A has ${p.ga} teams, Group B has ${p.gb}). Change the number of teams or eliminations in Admin.</p>`;
+  const rounds=[...new Set(defs.map(d=>d.round))];
+  let h=`<div class="bracket-wrap"><div class="bracket">`+rounds.map((r,i)=>{
+    const items=defs.filter(d=>d.round===r);
+    return `<div class="rcol ${i<rounds.length-1?'has-next':''} ${i>0?'has-prev':''}"><h4>${r}</h4><div class="mlist">${items.map(d=>`<div class="m">${koNode(d)}</div>`).join('')}</div></div>`;
+  }).join('')+`</div></div>`;
+  const champ=koWinner('final');
+  if(champ)h+=`<div class="champ"><span>🏆</span><br>Champion: ${esc(champ.name)}</div>`;
+  h+=`<p class="muted" style="text-align:center">The top ${p.q} teams in each group qualify (${p.Q} teams). Group A's winner is at the top of the tree and Group B's winner at the bottom. A group's places are confirmed once all its matches are completed.</p>`;
+  return h;
+}
+
+/* ---------- Render ---------- */
+function shell(){
+  $('#root').innerHTML=`<header><div class="wrap"><h1 id="hTitle"></h1><p id="hLoc"></p><div class="pub" id="hPub"></div><nav id="nav"></nav></div></header><main class="wrap" id="app"></main>`;
+}
+function render(){
+  if(!pub){
+    $('#hTitle').textContent='Table Tennis Tournament';$('#hLoc').textContent='';$('#hPub').textContent='';$('#nav').innerHTML='';
+    $('#app').innerHTML=dbErr?`<div class="card"><div class="err">${esc(dbErr)}</div><div class="actions"><button class="btn" onclick="boot()">Try again</button></div></div>`:'<div class="card muted">Loading the fixtures…</div>';
+    return;
+  }
+  const adm=unlocked();
+  state=adm?draft:pub.snapshot;
+  const win=state.matches.length?koWinner('final'):null, dt=eventDate();
+  $('#hTitle').textContent=state.title||'Table Tennis Tournament';
+  $('#hLoc').textContent=[state.location?'📍 '+state.location:'',dt?'🗓 '+dt:'',win?'🏆 Winner: '+win.name:''].filter(Boolean).join('  ·  ');
+  document.title=(state.title||'Table Tennis')+' – Fixture';
+  $('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
+  const tabs=[['fixtures','Fixtures'],['teams','Teams & Players'],['admin','🔒 Admin']];
+  $('#nav').innerHTML=tabs.map(([k,l])=>`<button class="${tab===k?'active':''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  $('#app').innerHTML=(dbErr?`<div class="banner">${esc(dbErr)} Showing the last saved version.</div>`:'')+(tab==='fixtures'?viewFixtures():tab==='teams'?viewTeams():viewAdmin());
+}
+function setTab(t){tab=t;render()}
+
+function pubBar(){
+  const dirty=isDirty();
+  return `<div class="pubbar ${dirty?'dirty':''}"><div class="txt"><b>${dirty?'Unpublished changes':'Everything is published'}</b>
+    <div class="muted">${pub.publishedAt?'Guests see the version published '+esc(fmt(pub.publishedAt))+'.':'Guests currently see the sample data. Nothing has been published yet.'}</div>
+    <div class="${pubMsg.err?'err':'ok'}">${esc(pubMsg.t||'')}</div></div>
+    <button class="btn" onclick="publish()" ${publishing?'disabled':''}>${publishing?'Publishing…':'Publish'}</button></div>`;
+}
+
+function standingsCard(g){
+  const rows=standings(g), p=plan(), done=groupDone(g);
+  return `<div class="card"><h2>Group ${g}</h2><div class="scroll"><table><tr><th class="l">#</th><th class="l">Team</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th></th></tr>`+
+    rows.map((r,i)=>{
+      const q=done&&p.ok?(i<p.q?'q':'o'):'';
+      return `<tr class="${q==='o'?'out':''}"><td class="l">${i+1}</td><td class="l">${esc(r.t.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td><b>${r.pts}</b></td><td>${q==='q'?'<span class="qb q">Qualified</span>':q==='o'?'<span class="qb o">Eliminated</span>':''}</td></tr>`;
+    }).join('')+
+    `</table></div><p class="muted">Winner gets 1 point (completed matches only).${p.ok?' The top '+p.q+' go through.':''}</p></div>`;
+}
+
+function viewFixtures(){
+  if(!state.matches.length)return '<div class="card muted">Fixtures have not been generated yet.</div>';
+  let h=resultsHtml();
+  h+=`<div class="grp2">${GROUPS.map(standingsCard).join('')}</div>`;
+  h+=`<div class="card"><h2>League fixtures</h2>${state.limit?`<p class="muted">Each team plays up to ${state.limit} matches in the group stage.</p>`:''}<div class="flt">`+['All','Upcoming','Live','Completed'].map(f=>`<button class="${filter===f?'on':''}" onclick="filter='${f}';render()">${f}</button>`).join('')+`</div>`;
+  let any=false;
+  GROUPS.forEach(g=>{
+    const gm=state.matches.filter(m=>m.group===g);
+    if(!gm.length)return;
+    const maxR=Math.max(...gm.map(m=>m.round));
+    let part='';
+    for(let r=1;r<=maxR;r++){
+      const ms=gm.filter(m=>m.round===r&&(filter==='All'||m.status===filter));
+      if(!ms.length)continue;any=true;
+      part+=`<div class="round"><h3>Round ${r}</h3>`+ms.map(m=>{
+        const done=m.status==='Completed', aw=done&&m.sa>m.sb, bw=done&&m.sb>m.sa;
+        return `<div class="match"><div class="t ${aw?'win':''}">${esc(team(m.a).name)}${aw?' 🏆':''}</div>
+        <div class="score">${m.status==='Upcoming'?'vs':m.sa+' - '+m.sb}</div>
+        <div class="t ${bw?'win':''}">${esc(team(m.b).name)}${bw?' 🏆':''}</div>
+        <span class="badge ${m.status}">${m.status}</span></div>`}).join('')+`</div>`;
+    }
+    if(part)h+=`<div class="gblock"><h3 class="gh">Group ${g}</h3>${part}</div>`;
+  });
+  if(!any)h+='<p class="muted">No matches for this filter.</p>';
+  h+='</div>';
+  return h+`<div class="card"><h2>Knockout stage</h2>${bracketHtml()}</div>`;
+}
+
+function viewTeams(){
+  if(!state.teams.length)return '<div class="card muted">No teams yet.</div>';
+  const champ=state.matches.length?koWinner('final'):null;
+  return GROUPS.map(g=>{
+    const ts=state.teams.filter(t=>t.group===g);
+    return `<div class="card"><h2>Group ${g} · ${ts.length} teams</h2><div class="teamgrid">`+ts.map(t=>
+      `<div class="team"><h3>${esc(t.name)}${champ&&champ.id===t.id?' 🏆':''}</h3><ul>`+
+      t.players.map(p=>`<li><span>${esc(p.name)||'<span class="muted">— open slot —</span>'}</span><span class="g ${p.gender}">${p.gender==='M'?'Male':'Female'}</span></li>`).join('')+
+      `</ul></div>`).join('')+`</div></div>`;
+  }).join('');
+}
+
+/* ---------- Admin (edits the draft; Publish makes it visible to everyone) ---------- */
+function planHint(){
+  const p=plan(), el=draft.teams.length-p.Q;
+  const where=p.Q===8?'quarter-finals':p.Q===4?'semi-finals':'final';
+  return p.ok
+    ?`Group A has ${p.ga} teams and Group B has ${p.gb}. The top ${p.q} of each group (${p.Q} teams) go to the ${where}; ${el} are eliminated.${draft.matches.length?' '+draft.matches.length+' group matches are scheduled.':''}`
+    :`Group A has ${p.ga} teams and Group B has ${p.gb}. ${p.Q} teams would qualify, but the knockout needs 8, 4 or 2 (with enough teams in each group). Adjust the number of teams or eliminations.`;
+}
+/* Once any match has started, the setup and fixture controls need the admin PIN again */
+function started(){return draft.matches.some(m=>m.status!=='Upcoming')||Object.values(draft.ko).some(k=>k&&k.status&&k.status!=='Upcoming')}
+function lockBanner(){
+  return `<div class="banner"><b>🔒 Matches have started.</b> These settings are locked.
+    ${askSet
+      ?`<div class="unlock"><input id="spin" type="password" inputmode="numeric" maxlength="8" aria-label="Admin PIN" placeholder="Admin PIN" onkeydown="if(event.key==='Enter')unlockSettings()"><button class="btn" onclick="unlockSettings()">Unlock</button><button class="btn alt" onclick="askSet=false;setErr='';render()">Cancel</button><span class="err">${esc(setErr)}</span></div>`
+      :`<div class="unlock"><button class="btn alt" onclick="askSettings()">Enter PIN to edit</button></div>`}</div>`;
+}
+function askSettings(){askSet=true;setErr='';render();setTimeout(()=>{const i=$('#spin');if(i)i.focus()},0)}
+async function unlockSettings(){
+  const v=($('#spin')||{}).value||'';
+  const r=await checkPin(v);
+  if(r.ok){settingsOpen=true;askSet=false;setErr=''}
+  else setErr=r.msg||BADPIN;
+  render();
+}
+function viewAdmin(){
+  if(!unlocked())return `<div class="card pin"><h2>Admin Console</h2><p class="muted">Enter your 8-digit PIN</p>
+    <input id="pinIn" aria-label="Admin PIN" type="password" inputmode="numeric" maxlength="8" autocomplete="off" onkeydown="if(event.key==='Enter')tryPin()">
+    <div class="err">${esc(adminMsg.pin||'')}</div>
+    <button class="btn" onclick="tryPin()">Unlock</button></div>`;
+  const m=adminMsg;
+  let h='';
+  if(draft.mock)h+=`<div class="banner mock"><span>📦 Sample (mock) data is loaded: 10 teams in 2 groups, a completed league and the knockout in progress.</span><button class="btn danger" onclick="clearMock()">Delete mock data</button></div>`;
+
+  const lockS=started()&&!settingsOpen, dS=lockS?'disabled':'';
+  h+=`<div class="card"><h2>Tournament setup</h2>${lockS?lockBanner():''}<div class="row">
+    <label>Tournament title<input id="sTitle" value="${esc(draft.title)}" ${dS}></label>
+    <label>Location<input id="sLoc" value="${esc(draft.location)}" ${dS}></label>
+    <label>Event date<input id="sDate" type="date" value="${esc(draft.date||'')}" ${dS}></label></div>
+    <div class="row" style="margin-top:12px">
+    <label>Number of teams (2–32)<input id="sTeams" type="number" min="2" max="32" value="${draft.teamCount}" ${dS}></label>
+    <label>Teams eliminated after the league<input id="sElim" type="number" min="0" max="31" value="${draft.elim}" ${dS}></label>
+    <label>Matches per team in the group stage<input id="sLimit" type="number" min="0" max="31" value="${draft.limit||0}" ${dS}></label>
+    <label>Male players per team<input id="sM" type="number" min="0" max="5" value="${draft.males}" ${dS}></label>
+    <label>Female players per team<input id="sF" type="number" min="0" max="5" value="${draft.females}" ${dS}></label></div>
+    <p class="muted">Maximum 5 players per team (males + females). Matches per team: 0 means everyone plays everyone in their group. A smaller number limits the group stage to that many rounds (in a group with an odd number of teams, a team with a bye plays one fewer).</p>
+    <p class="muted">${esc(planHint())}</p>
+    <div class="err" id="err-setup">${esc(m.setupErr||'')}</div><div class="ok">${esc(m.setupOk||'')}</div>
+    <div class="actions"><button class="btn" onclick="applySetup()" ${dS}>Save setup</button></div></div>`;
+
+  const lockG=draft.matches.length?'disabled':'';
+  h+=`<div class="card"><h2>Team names, groups & players</h2>
+    <p class="muted">${draft.matches.length?'Groups are locked while fixtures exist. Use "Clear fixtures" to change them.':'Teams 1 to '+Math.ceil(draft.teams.length/2)+' start in Group A and the rest in Group B. Change a team\'s group here before generating fixtures.'}</p>`+
+    draft.teams.map((t,i)=>
+    `<div class="edit-team"><div class="tline"><input data-tn="${i}" aria-label="Team ${i+1} name" value="${esc(t.name)}" placeholder="Team name">
+    <select aria-label="Team ${i+1} group" ${lockG} onchange="setGroup(${i},this.value)">${GROUPS.map(g=>`<option value="${g}" ${t.group===g?'selected':''}>Group ${g}</option>`).join('')}</select></div>
+    <div class="pl">`+t.players.map((p,j)=>`<span class="g ${p.gender}">${p.gender}</span><input data-tp="${i}_${j}" aria-label="Team ${i+1} player ${j+1}" value="${esc(p.name)}" placeholder="Player ${j+1} name">`).join('')+`</div></div>`).join('')+
+    `<div class="ok">${esc(m.teamOk||'')}</div><div class="actions"><button class="btn" onclick="saveTeams()">Save teams</button></div></div>`;
+
+  h+=`<div class="card"><h2>Fixtures</h2><p class="muted">Generates a round robin inside each group. ${draft.limit?`Each team plays up to ${draft.limit} matches in its group.`:'Every team plays the others in its group once.'} The top teams from each group then go into the knockout tree.</p>
+    <div class="err" id="err-fix">${esc(m.fixErr||'')}</div>
+    <div class="actions"><button class="btn ${draft.matches.length?'danger':''}" ${dS} onclick="doGenerate()">${draft.matches.length?'Regenerate fixtures (clears results)':'Generate fixtures'}</button>
+    ${draft.matches.length?'<button class="btn dangeralt" '+dS+' onclick="doClear()">Clear fixtures</button>':''}
+    <button class="btn alt" ${dS} onclick="loadMock()">Load sample data</button></div></div>`;
+
+  if(draft.matches.length){
+    h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team. Changes are kept as a draft until you publish.</p>`+
+    draft.matches.map(x=>matchRow('lg',x.id,`${x.group} R${x.round} · ${esc(team(x.a).name)}`,esc(team(x.b).name),x)).join('')+`</div>`;
+  }
+
+  const defs=koDefs();
+  if(defs.length){
+    h+=`<div class="card"><h2>Knockout matches</h2><p class="muted">Teams appear once their group's matches are completed. If the automatic places are not right, use the drop-downs to choose the teams yourself. Changes are kept as a draft until you publish.</p>`+
+    defs.map(d=>{
+      const x=koGet(d.id), A=koRef(d,'a'), B=koRef(d,'b');
+      return overHtml(d)+matchRow('ko',d.id,`${d.title} · ${A?esc(A.name):koLabel(d.a)}`,B?esc(B.name):koLabel(d.b),x);
+    }).join('')+`</div>`;
+  }
+
+  h+=pubBar();
+
+  h+=`<div class="card"><h2>Change admin PIN</h2><div class="row">
+    <label>Current PIN<input id="pOld" type="password" inputmode="numeric" maxlength="8"></label>
+    <label>New PIN (8 digits)<input id="pNew" type="password" inputmode="numeric" maxlength="8"></label>
+    <label>Confirm new PIN<input id="pNew2" type="password" inputmode="numeric" maxlength="8"></label></div>
+    <p class="muted">The PIN is stored (hashed) in Supabase and a new PIN applies on every device straight away.</p>
+    <div class="err" id="err-pin">${esc(m.pinErr||'')}</div><div class="ok">${esc(m.pinOk||'')}</div>
+    <div class="actions"><button class="btn" onclick="changePin()">Update PIN</button>
+    <button class="btn alt" onclick="lock()">Lock console</button>
+    <button class="btn dangeralt" onclick="resetAll()">Reset all data</button></div></div>`;
+  return h;
+}
+
+/* Override of the teams in a first-round knockout match */
+function overHtml(d){
+  const sides=['a','b'].filter(s=>d[s].grp);
+  if(!sides.length)return '';
+  const cur=s=>(draft.ko[d.id]&&draft.ko[d.id]['t'+s])||'';
+  const lk=koGet(d.id).status==='Completed'&&!openM[d.id]?'disabled':'';
+  return `<div class="over"><b>${d.title}</b>`+sides.map(s=>{
+    const other=cur(s==='a'?'b':'a');
+    return `<label>Team ${s.toUpperCase()}<select aria-label="${d.title} team ${s.toUpperCase()}" ${lk} onchange="setKoTeam('${d.id}','${s}',this.value)"><option value="">Automatic (${koLabel(d[s])})</option>`+
+      draft.teams.map(t=>`<option value="${t.id}" ${String(cur(s))===String(t.id)?'selected':''} ${other&&String(other)===String(t.id)?'disabled':''}>${esc(t.name)}</option>`).join('')+`</select></label>`;
+  }).join('')+`</div>`;
+}
+function setKoTeam(id,side,v){
+  const x=draft.ko[id]||(draft.ko[id]={sa:0,sb:0,status:'Upcoming'});
+  x['t'+side]=v?Number(v):null;saveDraft();render();
+}
+/* A completed match is locked; the admin PIN is needed to edit it again. */
+function matchRow(kind,id,left,right,x){
+  const fn=kind==='ko'?'updKo':'upd';
+  const locked=x.status==='Completed'&&!openM[id];
+  const dis=locked?'disabled':'';
+  let h=`<div class="mrow ${locked?'locked':''}"><span>${left}</span>
+    <input type="number" min="0" max="9" aria-label="Score" value="${x.sa}" ${dis} onchange="${fn}('${id}','sa',this.value)">
+    <span>–</span>
+    <input type="number" min="0" max="9" aria-label="Score" value="${x.sb}" ${dis} onchange="${fn}('${id}','sb',this.value)">
+    <span>${right}</span>
+    <select aria-label="Status" ${dis} onchange="${fn}('${id}','status',this.value)">${['Upcoming','Live','Completed'].map(s=>`<option ${x.status===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
+  if(locked){
+    h+=askId===id
+      ?`<div class="unlock"><input id="mpin" type="password" inputmode="numeric" maxlength="8" aria-label="Admin PIN" placeholder="Admin PIN" onkeydown="if(event.key==='Enter')unlockMatch('${id}')"><button class="btn" onclick="unlockMatch('${id}')">Unlock</button><button class="btn alt" onclick="askId=null;askErr='';render()">Cancel</button><span class="err">${esc(askErr)}</span></div>`
+      :`<div class="unlock"><span class="muted">Completed and locked</span><button class="btn alt" onclick="askPin('${id}')">🔒 Edit</button></div>`;
+  }
+  return h;
+}
+function askPin(id){askId=id;askErr='';render();setTimeout(()=>{const i=$('#mpin');if(i)i.focus()},0)}
+async function unlockMatch(id){
+  const v=($('#mpin')||{}).value||'';
+  const r=await checkPin(v);
+  if(r.ok){openM[id]=true;askId=null;askErr=''}
+  else askErr=r.msg||BADPIN;
+  render();
+}
+
+async function tryPin(){
+  const v=$('#pinIn').value;
+  if(!/^\d{8}$/.test(v)){adminMsg={pin:'Enter your 8-digit PIN.'};return render()}
+  const r=await checkPin(v);
+  if(r.ok){setApin(v);adminMsg={};render()}
+  else{adminMsg={pin:r.msg||BADPIN};render()}
+}
+function lock(){setApin('');adminMsg={};settingsOpen=false;askSet=false;tab='fixtures';render()}
+
+/* Messages written straight into the page keep whatever the admin has typed in the forms */
+function say(id,text){const e=document.getElementById(id);if(e)e.textContent=text}
+const _cf={};
+function confirmTwice(key,errId,text){
+  const now=Date.now();
+  if(_cf[key]&&now-_cf[key]<8000){_cf[key]=0;return true}
+  _cf[key]=now;say(errId,text);return false;
+}
+
+function applySetup(){
+  const t=$('#sTitle').value.trim(), l=$('#sLoc').value.trim();
+  const n=parseInt($('#sTeams').value), m=parseInt($('#sM').value), f=parseInt($('#sF').value), el=parseInt($('#sElim').value), lim=parseInt($('#sLimit').value)||0;
+  if(!(n>=2&&n<=32))return say('err-setup','Teams must be between 2 and 32.');
+  if(!(m>=0&&f>=0)||m+f<1||m+f>5)return say('err-setup','Males + females per team must be between 1 and 5.');
+  if(!(el>=0&&el<n))return say('err-setup','Eliminated teams must be between 0 and '+(n-1)+'.');
+  if(!(lim>=0&&lim<=31))return say('err-setup','Matches per team must be between 0 and 31.');
+  const changed=n!==draft.teamCount||m!==draft.males||f!==draft.females||lim!==(draft.limit||0);
+  const elimChanged=el!==draft.elim;
+  if(((changed&&draft.matches.length)||(elimChanged&&Object.keys(draft.ko).length))&&
+     !confirmTwice('setup','err-setup','This clears existing fixtures or knockout results. Press Save setup again to confirm.'))return;
+  draft.title=t;draft.location=l;draft.date=$('#sDate').value;draft.elim=el;draft.limit=lim;
+  if(elimChanged)draft.ko={};
+  if(changed){draft.teamCount=n;draft.males=m;draft.females=f;resizeTeams(draft);draft.matches=[];draft.ko={};draft.mock=false}
+  settingsOpen=false;
+  saveDraft();setMsg({setupOk:'Setup saved to draft.'});
+}
+function saveTeamsSilent(){
+  document.querySelectorAll('[data-tn]').forEach(i=>{draft.teams[+i.dataset.tn].name=i.value.trim()||('Team '+(+i.dataset.tn+1))});
+  document.querySelectorAll('[data-tp]').forEach(i=>{const [a,b]=i.dataset.tp.split('_');draft.teams[+a].players[+b].name=i.value.trim()});
+  saveDraft();
+}
+function saveTeams(){saveTeamsSilent();setMsg({teamOk:'Teams saved to draft.'})}
+function setGroup(i,v){saveTeamsSilent();draft.teams[i].group=v;saveDraft();render()}
+function doGenerate(){
+  if(draft.matches.length&&!confirmTwice('gen','err-fix','Regenerating clears all results. Press the button again to confirm.'))return;
+  saveTeamsSilent();generate(draft);draft.mock=false;saveDraft();setMsg({});
+}
+function doClear(){
+  if(!confirmTwice('clr','err-fix','This deletes all fixtures and results. Press "Clear fixtures" again to confirm.'))return;
+  draft.matches=[];draft.ko={};draft.mock=false;saveDraft();setMsg({});
+}
+function upd(id,k,v){
+  const x=draft.matches.find(m=>m.id===id);if(!x)return;
+  x[k]=(k==='status')?v:Math.max(0,parseInt(v)||0);
+  if(k==='status'&&v==='Completed')delete openM[id];
+  saveDraft();render();
+}
+function updKo(id,k,v){
+  const x=draft.ko[id]||(draft.ko[id]={sa:0,sb:0,status:'Upcoming'});
+  x[k]=(k==='status')?v:Math.max(0,parseInt(v)||0);
+  if(k==='status'&&v==='Completed')delete openM[id];
+  if(id==='final'&&k==='status'&&v==='Completed'&&!x.date)x.date=new Date().toLocaleDateString('en-CA');
+  saveDraft();render();
+}
+function loadMock(){
+  if(!confirmTwice('mock','err-fix','This replaces the current draft with sample data. Press "Load sample data" again to confirm.'))return;
+  draft=mockState(draft.pinHash);saveDraft();setMsg({});
+}
+function clearMock(){
+  draft=blankState(draft.pinHash);saveDraft();setMsg({setupOk:'Mock data deleted. Publish to remove it for guests.'});
+}
+async function changePin(){
+  const o=$('#pOld').value,n=$('#pNew').value,c=$('#pNew2').value;
+  if(!/^\d{8}$/.test(o))return say('err-pin','Enter your current 8-digit PIN.');
+  if(!/^\d{8}$/.test(n))return say('err-pin','New PIN must be exactly 8 digits.');
+  if(n!==c)return say('err-pin','New PINs do not match.');
+  try{
+    const ok=(await rpc('ttfix_change_pin',{p_old:o,p_new:n}))===true;
+    if(!ok)return say('err-pin',BADPIN);
+    setApin(n);setMsg({pinOk:'PIN updated. It applies on every device straight away.'});
+  }catch(e){say('err-pin',dbMsg(e))}
+}
+function resetAll(){
+  if(!confirmTwice('all','err-pin','This deletes the draft data in this browser (published fixtures are not touched). Press "Reset all data" again to confirm.'))return;
+  draft=blankState(null);saveDraft();setMsg({});
+}
+function setMsg(o){adminMsg=o;render()}
+
+/* ---------- Publish: saves the draft as a new row in ttfix_publications (PIN checked on the server) ---------- */
+async function publish(){
+  if(publishing)return;
+  publishing=true;pubMsg={t:'',err:false};render();
+  try{
+    const snap=clone(draft);delete snap.pinHash;
+    const ts=await rpc('ttfix_publish',{p_pin:apin(),p_snapshot:snap});
+    if(!ts)pubMsg={t:'The PIN was not accepted (it may have been changed, or locked after wrong tries). Lock the console and enter it again.',err:true};
+    else{pub={snapshot:snap,publishedAt:ts};cachePub();pubMsg={t:'Published. Guests see it now.',err:false}}
+  }catch(e){pubMsg={t:dbMsg(e),err:true}}
+  finally{publishing=false;render()}
+}
+
+/* ---------- Boot ---------- */
+async function boot(){
+  if(!$('#hTitle'))shell();
+  dbErr='';render();
+  await refreshPub(true);
+}
+boot();
+/* Guests pick up new publications without reloading */
+setInterval(()=>{if(!document.hidden)refreshPub(false)},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshPub(false)});
+</script>
+</body></html>
