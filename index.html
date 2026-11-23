@@ -31,7 +31,7 @@ body{margin:0;font-family:var(--font);font-size:15px;line-height:1.45;background
 .wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header{background:linear-gradient(135deg,var(--hd1),var(--hd2));color:#fff;text-align:center;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.25);
   padding-top:calc(env(safe-area-inset-top,0px) + 8px);max-height:24vh;overflow:hidden}
-header h1{margin:0;font-size:clamp(1.05rem,3.6vh,1.5rem);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header h1{margin:0;font-size:clamp(1rem,3.4vh,1.5rem);line-height:1.2;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 header p{margin:2px 0 0;opacity:.95;font-size:.82rem;line-height:1.3}
 header .pub{font-size:.72rem;opacity:.85;margin:1px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap}
@@ -111,8 +111,14 @@ tr.out td:last-child{opacity:1}
 .over{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 0 4px;margin-top:6px;border-top:1px solid var(--line)}
 .over b{flex:1 1 100%;font-size:.88rem}
 .over label{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:4px}
+.evl{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;width:100%;text-align:left;background:var(--row);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font:inherit;color:var(--ink);cursor:pointer}
+.evl b{color:var(--accent-text);text-decoration:underline}
+.evl span{font-size:.85rem;color:var(--muted)}
 /* knockout tree: columns are rounds, every match cell in a column shares the column height equally so each match sits level with the pair that feeds it */
-.bracket-wrap{overflow-x:auto;padding:8px 4px 12px}
+.bracket-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:8px 4px 12px}
+.swipe{display:none;text-align:center;font-size:.8rem;color:var(--muted);margin:0 0 6px}
+.bo{font-weight:600;color:var(--accent-text)}
+.tiecol small{color:var(--muted)}
 .bracket{display:flex;align-items:stretch;gap:48px;width:max-content;margin:0 auto}
 .rcol{display:flex;flex-direction:column}
 .rcol h4{margin:0 0 10px;text-align:center;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -144,10 +150,9 @@ ul.res{list-style:none;margin:0 auto;padding:0;max-width:440px;text-align:left;f
 ul.res li{padding:4px 0;border-top:1px solid rgba(128,128,128,.25)}
 @media(max-height:560px){header .pub{display:none}header{padding-top:calc(env(safe-area-inset-top,0px) + 4px)}nav button{padding:5px 12px}}
 @media(max-width:640px){
-  .bracket{flex-direction:column;width:100%;gap:18px}
-  .mlist{flex:none}
-  .m{width:100%;min-height:0;flex:none;margin-bottom:8px}
-  .m::before,.m::after{display:none!important}
+  .m{width:212px;min-height:152px}
+  .bracket{gap:44px}
+  .swipe{display:block!important}
   .match{grid-template-columns:1fr auto 1fr}
   .match .badge{grid-column:1/-1;justify-self:center}
   .mrow{grid-template-columns:1fr 46px 10px 46px 1fr}
@@ -164,7 +169,28 @@ ul.res li{padding:4px 0;border-top:1px solid rgba(128,128,128,.25)}
 const SUPABASE_URL = "https://gdvbplbqehrtrgiwwcja.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkdmJwbGJxZWhydHJnaXd3Y2phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMzExOTEsImV4cCI6MjEwNTgwNzE5MX0.w61-EWRvERE2QzXTKMifXp63Pqq5BFgMDKx99k3LPkY";
 const DKEY='ttfixture_draft_sb1', SKEY='ttfixture_admin_sb', CKEY='ttfixture_pubcache_sb';
-let dbErr='';
+let dbErr='', evs=[], viewing=null;
+async function fetchEvents(){
+  try{
+    const today=new Date().toLocaleDateString('en-CA');
+    return (await sb('ttfix_events?select=id,name,location,event_date&is_mock=eq.false&event_date=lt.'+today+'&order=event_date.desc'))||[];
+  }catch(e){return evs}
+}
+async function openEvent(id){
+  try{
+    const r=await sb('ttfix_events?id=eq.'+encodeURIComponent(id)+'&select=snapshot');
+    if(r&&r[0]&&r[0].snapshot&&r[0].snapshot.teams){const sn=ensureEv(migrate(r[0].snapshot));sn.ko=sn.ko||{};viewing={snapshot:sn};tab='fixtures';render();window.scrollTo(0,0)}
+  }catch(e){dbErr=dbMsg(e);render()}
+}
+function closeEvent(){viewing=null;render();window.scrollTo(0,0)}
+function evDate(d){try{return new Date(d+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})}catch(e){return d||''}}
+function eventsBar(){
+  if(viewing){const v=viewing.snapshot;
+    return `<div class="banner mock"><span>📁 Viewing event: <b>${esc(v.title)}</b> · ${esc(v.location||'')} · ${esc(evDate(v.date))}</span><button class="btn alt" onclick="closeEvent()">← Back to current</button></div>`;}
+  if(!evs.length)return '';
+  return `<div class="card"><h2>Events</h2><p class="muted">Past events. Open one to see its matches, results and players.</p>`+
+    evs.map(e=>`<button class="evl" onclick="openEvent('${esc(e.id)}')"><b>${esc(e.name)}</b><span>📍 ${esc(e.location||'')}</span><span>🗓 ${esc(evDate(e.event_date))}</span></button>`).join('')+`</div>`;
+}
 async function sb(path,opt){
   opt=opt||{};
   const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{method:opt.method||'GET',
@@ -211,8 +237,10 @@ function resizeTeams(s){
   });
   ensureGroups(s);
 }
+const newId=()=>'ev-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function ensureEv(s){if(s&&!s.eventId)s.eventId=s.mock?'ev-sample':'ev-legacy';return s}
 function blankState(pinHash){
-  const s={v:3,title:'Table Tennis Tournament',location:'',date:'',teamCount:10,males:1,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:false};
+  const s={v:3,eventId:newId(),title:'Table Tennis Tournament',location:'',date:'',teamCount:10,males:1,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:false};
   resizeTeams(s);return s;
 }
 function mockState(pinHash){
@@ -220,15 +248,15 @@ function mockState(pinHash){
   const M=['Arun','Wei Ming','Daniel','Rahul','Kenji','Marcus','Ivan','Hassan','Lucas','Raj','Tan','Peter','Jun','Ethan','Omar','Vikram','Ryo','Noah','Sam','Felix'];
   const F=['Mei','Priya','Sara','Aiko','Nina','Lena','Hana','Zoe','Ria','Cleo'];
   const strength=[10,7,9,3,6,2,8,5,4,1];
-  const s={v:3,title:'Singapore Open Table Tennis 2026',location:'Kallang Sports Hall, Singapore',date:'',teamCount:10,males:2,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:true};
+  const s={v:3,eventId:'ev-sample',title:'Singapore Open Table Tennis 2026',location:'Kallang Sports Hall, Singapore',date:'',teamCount:10,males:2,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:true};
   names.forEach((n,i)=>s.teams.push({id:i+1,name:n,players:[{name:M[2*i],gender:'M'},{name:M[2*i+1],gender:'M'},{name:F[i],gender:'F'}]}));
   generate(s);
   s.matches.forEach(m=>{
     const sa=strength[m.a-1], sb=strength[m.b-1], lose=(m.a+m.b)%3;
     m.status='Completed';
-    if(sa>sb){m.sa=3;m.sb=lose}else{m.sb=3;m.sa=lose}
+    const l1=lose%2;if(sa>sb){m.sa=2;m.sb=l1}else{m.sb=2;m.sa=l1}
   });
-  s.ko={qf1:{sa:3,sb:1,status:'Completed'},qf2:{sa:3,sb:2,status:'Completed'},qf3:{sa:2,sb:3,status:'Completed'},qf4:{sa:3,sb:0,status:'Completed'},
+  s.ko={qf1:{sa:2,sb:1,status:'Completed'},qf2:{sa:2,sb:0,status:'Completed'},qf3:{sa:1,sb:2,status:'Completed'},qf4:{sa:2,sb:0,status:'Completed'},
         sf1:{sa:3,sb:1,status:'Completed'},sf2:{sa:1,sb:1,status:'Live'},final:{sa:0,sb:0,status:'Upcoming'}};
   return s;
 }
@@ -254,10 +282,10 @@ function migrate(s){
 async function fetchPub(){
   const rows=await sb('ttfix_publications?select=published_at,snapshot&order=published_at.desc,id.desc&limit=1');
   if(rows&&rows.length&&rows[0].snapshot&&rows[0].snapshot.teams){
-    const s=migrate(rows[0].snapshot);s.ko=s.ko||{};
+    const s=ensureEv(migrate(rows[0].snapshot));s.ko=s.ko||{};
     return {snapshot:s,publishedAt:rows[0].published_at};
   }
-  return {snapshot:mockState(),publishedAt:null};
+  return {snapshot:ensureEv(mockState()),publishedAt:null};
 }
 function cachePub(){try{localStorage.setItem(CKEY,JSON.stringify(pub))}catch(e){}}
 async function refreshPub(first){
@@ -270,6 +298,8 @@ async function refreshPub(first){
       if(!firstLoad&&unlocked()&&$('#hPub'))$('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
       else render();
     }else if(!draft){draft=loadDraft();render()}
+    const ne=await fetchEvents();
+    if(JSON.stringify(ne)!==JSON.stringify(evs)){evs=ne;if(tab!=='admin'&&!viewing)render()}
   }catch(e){
     if(!first)return;
     dbErr=dbMsg(e);
@@ -279,7 +309,7 @@ async function refreshPub(first){
   }
 }
 function loadDraft(){
-  try{const r=JSON.parse(localStorage.getItem(DKEY));if(r&&r.teams){const m=migrate(r);m.ko=m.ko||{};return m}}catch(e){}
+  try{const r=JSON.parse(localStorage.getItem(DKEY));if(r&&r.teams){const m=ensureEv(migrate(r));m.ko=m.ko||{};return m}}catch(e){}
   return clone(pub.snapshot);
 }
 function saveDraft(){try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}autoPublish()}
@@ -315,17 +345,23 @@ function generate(s){
 }
 const team=id=>state.teams.find(t=>t.id===id)||{name:'?'};
 
-function standings(g){
-  const rows=state.teams.filter(t=>t.group===g).map(t=>({t,p:0,w:0,l:0,pts:0}));
+function tally(teams){
+  const rows=teams.map(t=>({t,g:t.group,p:0,w:0,l:0,pts:0,gf:0,ga:0}));
   const by=Object.fromEntries(rows.map(r=>[r.t.id,r]));
-  state.matches.filter(x=>x.group===g&&x.status==='Completed').forEach(x=>{
+  state.matches.filter(x=>x.status==='Completed').forEach(x=>{
     const A=by[x.a],B=by[x.b];if(!A||!B)return;
-    A.p++;B.p++;
+    A.p++;B.p++;A.gf+=x.sa;A.ga+=x.sb;B.gf+=x.sb;B.ga+=x.sa;
     if(x.sa>x.sb){A.w++;B.l++;A.pts+=1}
     else if(x.sb>x.sa){B.w++;A.l++;B.pts+=1}
   });
-  return rows.sort((a,b)=>b.pts-a.pts||a.t.name.localeCompare(b.t.name));
+  return rows.sort((a,b)=>b.pts-a.pts||(b.gf-b.ga)-(a.gf-a.ga)||b.gf-a.gf||a.t.name.localeCompare(b.t.name));
 }
+/* Points and elimination count across the whole league, not group by group */
+function overall(){return tally(state.teams)}
+function standings(g){return tally(state.teams.filter(t=>t.group===g))}
+function leagueDone(){return state.matches.length>0&&state.matches.every(m=>m.status==='Completed')}
+const koBest=id=>String(id).startsWith('qf')?3:5;
+const winsNeeded=best=>(best+1)/2;
 function groupDone(g){
   const ms=state.matches.filter(m=>m.group===g);
   return ms.length>0&&ms.every(m=>m.status==='Completed');
@@ -334,42 +370,41 @@ function groupDone(g){
 function plan(){
   const n=state.teams.length, Q=n-(state.elim??2);
   const ga=state.teams.filter(t=>t.group==='A').length, gb=state.teams.filter(t=>t.group==='B').length;
-  const ok=[2,4,8].includes(Q)&&ga>=Q/2&&gb>=Q/2;
-  return {n,Q,ga,gb,ok,q:ok?Q/2:0};
+  return {n,Q,ga,gb,ok:[2,4,8].includes(Q)&&Q<=n};
 }
 
 /* ---------- Knockout tree ---------- */
 function koDefs(){
   const p=plan();
   if(!state.matches.length||!p.ok)return [];
-  const S=(grp,rank)=>({grp,rank}), W=id=>({win:id});
+  const S=seed=>({seed}), W=id=>({win:id});
   if(p.Q===8)return [
-    {id:'qf1',title:'Quarter-final 1',round:'Quarter-finals',a:S('A',1),b:S('B',4)},
-    {id:'qf2',title:'Quarter-final 2',round:'Quarter-finals',a:S('B',2),b:S('A',3)},
-    {id:'qf3',title:'Quarter-final 3',round:'Quarter-finals',a:S('A',2),b:S('B',3)},
-    {id:'qf4',title:'Quarter-final 4',round:'Quarter-finals',a:S('B',1),b:S('A',4)},
+    {id:'qf1',title:'Quarter-final 1',round:'Quarter-finals',a:S(1),b:S(8)},
+    {id:'qf2',title:'Quarter-final 2',round:'Quarter-finals',a:S(4),b:S(5)},
+    {id:'qf3',title:'Quarter-final 3',round:'Quarter-finals',a:S(3),b:S(6)},
+    {id:'qf4',title:'Quarter-final 4',round:'Quarter-finals',a:S(2),b:S(7)},
     {id:'sf1',title:'Semi-final 1',round:'Semi-finals',a:W('qf1'),b:W('qf2')},
     {id:'sf2',title:'Semi-final 2',round:'Semi-finals',a:W('qf3'),b:W('qf4')},
     {id:'final',title:'Final',round:'Final',a:W('sf1'),b:W('sf2')}];
   if(p.Q===4)return [
-    {id:'sf1',title:'Semi-final 1',round:'Semi-finals',a:S('A',1),b:S('B',2)},
-    {id:'sf2',title:'Semi-final 2',round:'Semi-finals',a:S('B',1),b:S('A',2)},
+    {id:'sf1',title:'Semi-final 1',round:'Semi-finals',a:S(1),b:S(4)},
+    {id:'sf2',title:'Semi-final 2',round:'Semi-finals',a:S(2),b:S(3)},
     {id:'final',title:'Final',round:'Final',a:W('sf1'),b:W('sf2')}];
-  return [{id:'final',title:'Final',round:'Final',a:S('A',1),b:S('B',1)}];
+  return [{id:'final',title:'Final',round:'Final',a:S(1),b:S(2)}];
 }
 const koGet=id=>state.ko[id]||{sa:0,sb:0,status:'Upcoming'};
 function koRef(d,side){
   const o=state.ko[d.id]&&state.ko[d.id]['t'+side];
   if(o){const t=state.teams.find(t=>t.id===o);if(t)return t}
   const r=d[side];
-  if(r.grp){
-    if(!groupDone(r.grp))return null;
-    const row=standings(r.grp)[r.rank-1];
+  if(r.seed){
+    if(!leagueDone())return null;
+    const row=overall()[r.seed-1];
     return row?row.t:null;
   }
   return koWinner(r.win);
 }
-function koLabel(r){return r.grp?'Group '+r.grp+' #'+r.rank:'Winner '+r.win.toUpperCase()}
+function koLabel(r){return r.seed?'Seed '+r.seed:'Winner '+r.win.toUpperCase()}
 function koWinner(id){
   const d=koDefs().find(x=>x.id===id);if(!d)return null;
   const m=koGet(id);
@@ -411,7 +446,7 @@ function koNode(d){
   const row=(T,side,sc)=>{
     const r=d[side], isW=w&&T&&w.id===T.id;
     const ov=state.ko[d.id]&&state.ko[d.id]['t'+side];
-    const tag=r.grp&&!ov?`<small class="seed">${r.grp}${r.rank}</small>`:'';
+    const tag=r.seed&&!ov?`<small class="seed">#${r.seed}</small>`:'';
     return `<div class="nrow ${isW?'win':''}"><span class="nm">${tag}${T?esc(T.name):'<i class="tbd">'+koLabel(r)+'</i>'}${isW?' 🏆':''}</span><b>${m.status==='Upcoming'?'':sc}</b></div>`;
   };
   return `<div class="node ${d.id==='final'?'final':''}"><div class="nh"><span>${d.title}</span><span class="badge ${m.status}">${m.status}</span></div>${row(A,'a',m.sa)}${row(B,'b',m.sb)}</div>`;
@@ -419,15 +454,15 @@ function koNode(d){
 function bracketHtml(){
   const defs=koDefs(), p=plan();
   if(!state.matches.length)return '<p class="muted">Generate fixtures to see the knockout tree.</p>';
-  if(!defs.length)return `<p class="muted">The knockout tree needs 8, 4 or 2 qualifying teams, with enough teams in each group. Right now ${p.Q} would qualify (Group A has ${p.ga} teams, Group B has ${p.gb}). Change the number of teams or eliminations in Admin.</p>`;
+  if(!defs.length)return `<p class="muted">The knockout tree needs 8, 4 or 2 qualifying teams. Right now ${p.Q} of ${p.n} would qualify. Change the number of teams or eliminations in Admin.</p>`;
   const rounds=[...new Set(defs.map(d=>d.round))];
-  let h=`<div class="bracket-wrap"><div class="bracket">`+rounds.map((r,i)=>{
+  let h=`<p class="swipe">↔ Swipe sideways to see the whole tree</p><div class="bracket-wrap"><div class="bracket">`+rounds.map((r,i)=>{
     const items=defs.filter(d=>d.round===r);
-    return `<div class="rcol ${i<rounds.length-1?'has-next':''} ${i>0?'has-prev':''}"><h4>${r}</h4><div class="mlist">${items.map(d=>`<div class="m">${koNode(d)}</div>`).join('')}</div></div>`;
+    return `<div class="rcol ${i<rounds.length-1?'has-next':''} ${i>0?'has-prev':''}"><h4>${r}<br><span class="bo">Best of ${koBest(items[0].id)}</span></h4><div class="mlist">${items.map(d=>`<div class="m">${koNode(d)}</div>`).join('')}</div></div>`;
   }).join('')+`</div></div>`;
   const champ=koWinner('final');
   if(champ)h+=`<div class="champ"><span>🏆</span><br>Champion: ${esc(champ.name)}</div>`;
-  h+=`<p class="muted" style="text-align:center">The top ${p.q} teams in each group qualify (${p.Q} teams). Group A's winner is at the top of the tree and Group B's winner at the bottom. A group's places are confirmed once all its matches are completed.</p>`;
+  h+=`<p class="muted" style="text-align:center">Quarter-finals are best of 3. Semi-finals and the final are best of 5. The top ${p.Q} of all ${p.n} teams qualify, ranked across both groups. Seed 1 is at the top of the tree and seed 2 at the bottom. Places are confirmed once all league matches are completed.</p>`;
   return h;
 }
 
@@ -442,17 +477,17 @@ function render(){
     return;
   }
   const adm=unlocked();
-  state=adm?draft:pub.snapshot;
+  state=viewing?viewing.snapshot:(adm?draft:pub.snapshot);
   const win=state.matches.length?koWinner('final'):null, dt=eventDate();
   $('#hTitle').textContent=state.title||'Table Tennis Tournament';
   $('#hLoc').textContent=['📍 '+(state.location||'Location not set'),'🗓 '+(dt||'Date not set'),win?'🏆 Winner: '+win.name:''].filter(Boolean).join('  ·  ');
   document.title=(state.title||'Table Tennis')+' – Fixture';
-  $('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
+  $('#hPub').textContent=viewing?'Past event':(pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet');
   const tabs=[['fixtures','Fixtures'],['teams','Teams & Players'],['admin','🔒 Admin']];
   $('#nav').innerHTML=tabs.map(([k,l])=>`<button class="${tab===k?'active':''}" onclick="setTab('${k}')">${l}</button>`).join('');
   $('#app').innerHTML=(dbErr?`<div class="banner">${esc(dbErr)} Showing the last saved version.</div>`:'')+(tab==='fixtures'?viewFixtures():tab==='teams'?viewTeams():viewAdmin());
 }
-function setTab(t){tab=t;render()}
+function setTab(t){tab=t;if(t==='admin')viewing=null;render()}
 
 function pubStatus(){
   if(publishing||pubTimer)return {t:'Saving…',sub:'',err:false,dirty:true};
@@ -466,24 +501,25 @@ function pubBar(){
 function refreshPubBar(){
   const e=$('#pubbar');
   if(e){const p=pubStatus();e.className='pubbar '+(p.dirty?'dirty':'');e.innerHTML=`<div class="txt"><b>${esc(p.t)}</b><div class="${p.err?'err':'muted'}">${esc(p.sub)}</div></div>`}
-  const h=$('#hPub');if(h&&pub)h.textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
+  const h=$('#hPub');if(h&&pub&&!viewing)h.textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
 }
 
-function standingsCard(g){
-  const rows=standings(g), p=plan(), done=groupDone(g);
-  return `<div class="card"><h2>Group ${g}</h2><div class="scroll"><table><tr><th class="l">#</th><th class="l">Team</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th></th></tr>`+
+function leagueTable(){
+  const rows=overall(), p=plan(), done=leagueDone();
+  return `<div class="card"><h2>League standings</h2><div class="scroll"><table><tr><th class="l">#</th><th class="l">Team</th><th>Group</th><th>P</th><th>W</th><th>L</th><th>Pts</th><th></th></tr>`+
     rows.map((r,i)=>{
-      const q=done&&p.ok?(i<p.q?'q':'o'):'';
-      return `<tr class="${q==='o'?'out':''}"><td class="l">${i+1}</td><td class="l">${esc(r.t.name)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td><b>${r.pts}</b></td><td>${q==='q'?'<span class="qb q">Qualified</span>':q==='o'?'<span class="qb o">Eliminated</span>':''}</td></tr>`;
+      const q=done&&p.ok?(i<p.Q?'q':'o'):'';
+      return `<tr class="${q==='o'?'out':''}"><td class="l">${i+1}</td><td class="l">${esc(r.t.name)}</td><td>${esc(r.g)}</td><td>${r.p}</td><td>${r.w}</td><td>${r.l}</td><td><b>${r.pts}</b></td><td>${q==='q'?'<span class="qb q">Qualified</span>':q==='o'?'<span class="qb o">Eliminated</span>':''}</td></tr>`;
     }).join('')+
-    `</table></div><p class="muted">Winner gets 1 point (completed matches only).${p.ok?' The top '+p.q+' go through.':''}</p></div>`;
+    `</table></div><p class="muted">One table for both groups. A win is 1 point (completed matches only); ties are split by game difference.${p.ok?' The top '+p.Q+' of '+p.n+' teams go through and '+(p.n-p.Q)+' are eliminated once every league match is completed.':''}</p></div>`;
 }
 
-function viewFixtures(){
+function viewFixtures(){return eventsBar()+viewFixtures0()}
+function viewFixtures0(){
   if(!state.matches.length)return '<div class="card muted">Fixtures have not been generated yet.</div>';
   let h=resultsHtml();
-  h+=`<div class="grp2">${GROUPS.map(standingsCard).join('')}</div>`;
-  h+=`<div class="card"><h2>League fixtures</h2>${state.limit?`<p class="muted">Each team plays up to ${state.limit} matches in the group stage.</p>`:''}<div class="flt">`+['All','Upcoming','Live','Completed'].map(f=>`<button class="${filter===f?'on':''}" onclick="filter='${f}';render()">${f}</button>`).join('')+`</div>`;
+  h+=leagueTable();
+  h+=`<div class="card"><h2>League fixtures</h2><p class="muted"><b>League matches are best of 3</b> (first to 2 games). Group A and Group B play their own fixtures; points and elimination count across all teams.</p>${state.limit?`<p class="muted">Each team plays up to ${state.limit} matches in the group stage.</p>`:''}<div class="flt">`+['All','Upcoming','Live','Completed'].map(f=>`<button class="${filter===f?'on':''}" onclick="filter='${f}';render()">${f}</button>`).join('')+`</div>`;
   let any=false;
   GROUPS.forEach(g=>{
     const gm=state.matches.filter(m=>m.group===g);
@@ -507,7 +543,8 @@ function viewFixtures(){
   return h+`<div class="card"><h2>Knockout stage</h2>${bracketHtml()}</div>`;
 }
 
-function viewTeams(){
+function viewTeams(){return (viewing?eventsBar():'')+viewTeams0()}
+function viewTeams0(){
   if(!state.teams.length)return '<div class="card muted">No teams yet.</div>';
   const champ=state.matches.length?koWinner('final'):null;
   return GROUPS.map(g=>{
@@ -524,8 +561,8 @@ function planHint(){
   const p=plan(), el=draft.teams.length-p.Q;
   const where=p.Q===8?'quarter-finals':p.Q===4?'semi-finals':'final';
   return p.ok
-    ?`Group A has ${p.ga} teams and Group B has ${p.gb}. The top ${p.q} of each group (${p.Q} teams) go to the ${where}; ${el} are eliminated.${draft.matches.length?' '+draft.matches.length+' group matches are scheduled.':''}`
-    :`Group A has ${p.ga} teams and Group B has ${p.gb}. ${p.Q} teams would qualify, but the knockout needs 8, 4 or 2 (with enough teams in each group). Adjust the number of teams or eliminations.`;
+    ?`Group A has ${p.ga} teams and Group B has ${p.gb}. The top ${p.Q} of all ${p.n} teams (both groups together) go to the ${where}; ${el} are eliminated.${draft.matches.length?' '+draft.matches.length+' group matches are scheduled.':''}`
+    :`Group A has ${p.ga} teams and Group B has ${p.gb}. ${p.Q} teams would qualify, but the knockout needs 8, 4 or 2. Adjust the number of teams or eliminations.`;
 }
 /* Once any match has started, the setup and fixture controls need the admin PIN again */
 function started(){return draft.matches.some(m=>m.status!=='Upcoming')||Object.values(draft.ko).some(k=>k&&k.status&&k.status!=='Upcoming')}
@@ -566,7 +603,7 @@ function viewAdmin(){
     <p class="muted">Maximum 5 players per team (males + females). Matches per team: 0 means everyone plays everyone in their group. A smaller number limits the group stage to that many rounds (in a group with an odd number of teams, a team with a bye plays one fewer).</p>
     <p class="muted">${esc(planHint())}</p>
     <div class="err" id="err-setup">${esc(m.setupErr||'')}</div><div class="ok">${esc(m.setupOk||'')}</div>
-    <div class="actions"><button class="btn" onclick="applySetup()" ${dS}>Save setup</button></div></div>`;
+    <div class="actions"><button class="btn" onclick="applySetup()" ${dS}>Save setup</button><button class="btn alt" onclick="newEvent()" ${dS}>Start a new event</button></div></div>`;
 
   const lockG=draft.matches.length?'disabled':'';
   h+=`<div class="card"><h2>Team names, groups & players</h2>
@@ -584,13 +621,13 @@ function viewAdmin(){
     <button class="btn alt" ${dS} onclick="loadMock()">Load sample data</button></div></div>`;
 
   if(draft.matches.length){
-    h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team. Changes are saved automatically.</p>`+
+    h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team (league matches are best of 3). Changes are saved automatically.</p>`+
     draft.matches.map(x=>matchRow('lg',x.id,`${x.group} R${x.round} · ${esc(team(x.a).name)}`,esc(team(x.b).name),x)).join('')+`</div>`;
   }
 
   const defs=koDefs();
   if(defs.length){
-    h+=`<div class="card"><h2>Knockout matches</h2><p class="muted">Teams appear once their group's matches are completed. If the automatic places are not right, use the drop-downs to choose the teams yourself. Changes are saved automatically.</p>`+
+    h+=`<div class="card"><h2>Knockout matches</h2><p class="muted">Teams appear once all league matches are completed (quarter-finals are best of 3; semi-finals and the final are best of 5). If the automatic places are not right, use the drop-downs to choose the teams yourself. Changes are saved automatically.</p>`+
     defs.map(d=>{
       const x=koGet(d.id), A=koRef(d,'a'), B=koRef(d,'b');
       return overHtml(d)+matchRow('ko',d.id,`${d.title} · ${A?esc(A.name):koLabel(d.a)}`,B?esc(B.name):koLabel(d.b),x);
@@ -613,7 +650,7 @@ function viewAdmin(){
 
 /* Override of the teams in a first-round knockout match */
 function overHtml(d){
-  const sides=['a','b'].filter(s=>d[s].grp);
+  const sides=['a','b'].filter(s=>d[s].seed);
   if(!sides.length)return '';
   const cur=s=>(draft.ko[d.id]&&draft.ko[d.id]['t'+s])||'';
   const lk=koGet(d.id).status==='Completed'&&!openM[d.id]?'disabled':'';
@@ -630,12 +667,13 @@ function setKoTeam(id,side,v){
 /* A completed match is locked; the admin PIN is needed to edit it again. */
 function matchRow(kind,id,left,right,x){
   const fn=kind==='ko'?'updKo':'upd';
+  const mx=kind==='ko'?winsNeeded(koBest(id)):2;
   const locked=x.status==='Completed'&&!openM[id];
   const dis=locked?'disabled':'';
   let h=`<div class="mrow ${locked?'locked':''}"><span>${left}</span>
-    <input type="number" min="0" max="9" aria-label="Score" value="${x.sa}" ${dis} onchange="${fn}('${id}','sa',this.value)">
+    <input type="number" min="0" max="${mx}" aria-label="Score" value="${x.sa}" ${dis} onchange="${fn}('${id}','sa',this.value)">
     <span>–</span>
-    <input type="number" min="0" max="9" aria-label="Score" value="${x.sb}" ${dis} onchange="${fn}('${id}','sb',this.value)">
+    <input type="number" min="0" max="${mx}" aria-label="Score" value="${x.sb}" ${dis} onchange="${fn}('${id}','sb',this.value)">
     <span>${right}</span>
     <select aria-label="Status" ${dis} onchange="${fn}('${id}','status',this.value)">${['Upcoming','Live','Completed'].map(s=>`<option ${x.status===s?'selected':''}>${s}</option>`).join('')}</select></div>`;
   if(locked){
@@ -690,6 +728,10 @@ function applySetup(){
   settingsOpen=false;
   saveDraft();setMsg({setupOk:'Setup saved.'});
 }
+function newEvent(){
+  if(!confirmTwice('newev','err-setup','This starts a blank event for guests. The current event stays saved and is listed under Events once its date has passed. Press "Start a new event" again to confirm.'))return;
+  draft=blankState(null);openM={};settingsOpen=false;saveDraft();setMsg({setupOk:'New event started. Enter its title, location and date, then save setup.'});
+}
 function saveTeamsSilent(){
   document.querySelectorAll('[data-tn]').forEach(i=>{draft.teams[+i.dataset.tn].name=i.value.trim()||('Team '+(+i.dataset.tn+1))});
   document.querySelectorAll('[data-tp]').forEach(i=>{const [a,b]=i.dataset.tp.split('_');draft.teams[+a].players[+b].name=i.value.trim()});
@@ -707,13 +749,13 @@ function doClear(){
 }
 function upd(id,k,v){
   const x=draft.matches.find(m=>m.id===id);if(!x)return;
-  x[k]=(k==='status')?v:Math.max(0,parseInt(v)||0);
+  x[k]=(k==='status')?v:Math.min(2,Math.max(0,parseInt(v)||0));
   if(k==='status'&&v==='Completed')delete openM[id];
   saveDraft();render();
 }
 function updKo(id,k,v){
   const x=draft.ko[id]||(draft.ko[id]={sa:0,sb:0,status:'Upcoming'});
-  x[k]=(k==='status')?v:Math.max(0,parseInt(v)||0);
+  x[k]=(k==='status')?v:Math.min(winsNeeded(koBest(id)),Math.max(0,parseInt(v)||0));
   if(k==='status'&&v==='Completed')delete openM[id];
   if(id==='final'&&k==='status'&&v==='Completed'&&!x.date)x.date=new Date().toLocaleDateString('en-CA');
   saveDraft();render();
