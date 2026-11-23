@@ -116,6 +116,20 @@ tr.out td:last-child{opacity:1}
 .evl span{font-size:.85rem;color:var(--muted)}
 /* knockout tree: columns are rounds, every match cell in a column shares the column height equally so each match sits level with the pair that feeds it */
 .bracket-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding:8px 4px 12px}
+.shr{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.shr .box{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(360px,100%);max-height:100%;overflow:auto;text-align:center}
+.shr h2{margin:0 0 4px;font-size:1.1rem}
+.shr .qr{background:#fff;padding:10px;border-radius:10px;display:inline-block;margin:10px 0}
+.shr .qr img{display:block;width:min(240px,64vw);height:auto;image-rendering:pixelated}
+.shr .lnk{display:flex;gap:6px;margin:6px 0 10px}
+.shr .lnk input{flex:1;min-width:0;font-size:.8rem}
+.shr .actions{justify-content:center}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));z-index:60;display:flex;align-items:center;gap:8px;background:var(--gold);color:#1c2b24;border:0;border-radius:99px;padding:12px 18px;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35),0 0 0 3px rgba(255,255,255,.35);animation:fabp 2.4s ease-in-out 3}
+.fab span{font-size:1.3rem;line-height:1}
+.fab:hover{filter:brightness(1.05)}
+@keyframes fabp{50%{transform:scale(1.07)}}
+@media (prefers-reduced-motion:reduce){.fab{animation:none}}
+main{padding-bottom:84px}
 .swipe{display:none;text-align:center;font-size:.8rem;color:var(--muted);margin:0 0 6px}
 .bo{font-weight:600;color:var(--accent-text)}
 .tiecol small{color:var(--muted)}
@@ -168,6 +182,27 @@ ul.res li{padding:4px 0;border-top:1px solid rgba(128,128,128,.25)}
    Never put the service_role key in this file. */
 const SUPABASE_URL = "https://gdvbplbqehrtrgiwwcja.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdkdmJwbGJxZWhydHJnaXd3Y2phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMzExOTEsImV4cCI6MjEwNTgwNzE5MX0.w61-EWRvERE2QzXTKMifXp63Pqq5BFgMDKx99k3LPkY";
+const APP_LINK='https://playpenaj.github.io/jlnkayu_ttleague/index.html';
+const QR_IMG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAaQAAAGkAQAAAABWN2yYAAADI0lEQVR42u2czW3bQBCF34gC6BvVAQ2kEOqWelIB151RnVAd0DcaoPhymN3VT+JIdMRL8vYikNoPNgaD+R8Zsfy8b/CVI0qUqH+GoqWzxeEFOJqZWQDMtgDwtgNwypdeJENRf0eF37wjZ9QkSXYFOSI9kez9RUVyQuPvQkkOkryoP1MfZrYBgMML2NNsC7ybvZ5sD7RHs/3lJclQ1LMpt2wjAEuWDUBDhopAwQ7ZsvklWTZRi6iS5JyUrYfrEW0vGYpan8radzDDcQOcLACoJ6Bk+FVFJUNRn50tABzNHwqgHK2eNwDaH8bjt+nwfYw3D/FSKRmKWoOynH3mwKwraDugji8AFPnSKBmKWkYND+YOzYiWzIEd0JAckDRvsFQO6Y2dcgdRdzSK15YtVtxCvtEOQDOhJVHPgDRK1H0bNaWnhryob9TZefoBrmzUJBmKeqoejmhjIyGHaAFgX5BkqLx1AKCe3Y1KhqJW0kOP784eNp7OayHNlKsi8rCi7sZsHdAORk5A6YFZkYK4c8yGkuwhjRK1mmUD0PpHQ085AXikhzJno4CyUVEP+kqSnGOqwD4X3vqrvkHJNBAijRK1SlUkxmwFObqp89whxmzZ+SadlR6Kuq9R0bLRzdeUfSVSgtD6V/KVolbUQ+RGPGpexGwNLyzbTXVOMhT1WTZakAOSAp2nj5KHPA/xTpfZ6HbhvybJi7pXFQEAFOxKppb8kGeO3LK1VMwmaoGvrOboJFPBY0DaPMh1NsVsolats5UMVfKrMXdoB7CPbyzaPtXZRK00feRTcGNWQBLvZvs4BRdbqbSWDCWtOfnEuSQv6qEOQnHjYfvCDVm+K8sm6tFJ3QCLrVB7TZO61nzYHimc4wjU86K/9SrJi/rSHn08zQRU3sn6sADE5Rhtm4paddv0co8+Dom0PPfovXfvK/bysKKW7i/H4UmeW/K30+XSKFFYe+sZx4LdKflVMwtVWmXQL9WIWkodLO6U4m3ne/Sk7W4yV8lQ1PoxW/K11xPjcXNBHlbUg3U2ALE3em6Wxh59qNLWVh5wkwxFPZcy/SqpKFH/MfUTmOkfqq0NuHAAAAAASUVORK5CYII=';
+function openShare(){
+  closeShare();
+  const d=document.createElement('div');d.className='shr';d.id='shr';d.setAttribute('role','dialog');d.setAttribute('aria-label','Share this tournament');
+  d.innerHTML=`<div class="box"><h2>Share this tournament</h2><div class="muted">Scan the QR code to open the fixtures.</div>
+    <div class="qr"><img src="${QR_IMG}" alt="QR code for ${esc(APP_LINK)}"></div>
+    <div class="lnk"><input id="shrUrl" readonly value="${esc(APP_LINK)}" aria-label="App link" onfocus="this.select()"><button class="btn" onclick="copyLink()">Copy</button></div>
+    <div class="ok" id="shrMsg"></div>
+    <div class="actions">${navigator.share?'<button class="btn" onclick="nativeShare()">Share…</button>':''}<button class="btn alt" onclick="closeShare()">Close</button></div></div>`;
+  d.addEventListener('click',e=>{if(e.target===d)closeShare()});
+  document.body.appendChild(d);
+}
+function closeShare(){const e=document.getElementById('shr');if(e)e.remove()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeShare()});
+async function copyLink(){
+  const m=document.getElementById('shrMsg');
+  try{await navigator.clipboard.writeText(APP_LINK);m.textContent='Link copied.'}
+  catch(e){const i=document.getElementById('shrUrl');i.focus();i.select();m.textContent='Press Ctrl+C (or long-press) to copy.'}
+}
+async function nativeShare(){try{await navigator.share({title:document.title,url:APP_LINK})}catch(e){}}
 const DKEY='ttfixture_draft_sb1', SKEY='ttfixture_admin_sb', CKEY='ttfixture_pubcache_sb';
 let dbErr='', evs=[], viewing=null;
 async function fetchEvents(){
@@ -485,6 +520,7 @@ function render(){
   $('#hPub').textContent=viewing?'Past event':(pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet');
   const tabs=[['fixtures','Fixtures'],['teams','Teams & Players'],['admin','🔒 Admin']];
   $('#nav').innerHTML=tabs.map(([k,l])=>`<button class="${tab===k?'active':''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  if(!$('#fab')){const f=document.createElement('button');f.id='fab';f.className='fab';f.setAttribute('aria-label','Share this tournament with a QR code');f.innerHTML='<span>📲</span>Share';f.onclick=openShare;document.body.appendChild(f)}
   $('#app').innerHTML=(dbErr?`<div class="banner">${esc(dbErr)} Showing the last saved version.</div>`:'')+(tab==='fixtures'?viewFixtures():tab==='teams'?viewTeams():viewAdmin());
 }
 function setTab(t){tab=t;if(t==='admin')viewing=null;render()}
