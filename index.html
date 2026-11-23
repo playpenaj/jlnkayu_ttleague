@@ -30,12 +30,12 @@
 body{margin:0;font-family:var(--font);font-size:15px;line-height:1.45;background:var(--bg);color:var(--ink)}
 .wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header{background:linear-gradient(135deg,var(--hd1),var(--hd2));color:#fff;text-align:center;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.25);
-  padding-top:22px}
-header h1{margin:0;font-size:1.6rem;text-wrap:balance}
-header p{margin:6px 0 0;opacity:.9}
-header .pub{font-size:.82rem;opacity:.85;margin:6px 0 14px}
+  padding-top:calc(env(safe-area-inset-top,0px) + 8px);max-height:24vh;overflow:hidden}
+header h1{margin:0;font-size:clamp(1.05rem,3.6vh,1.5rem);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header p{margin:2px 0 0;opacity:.95;font-size:.82rem;line-height:1.3}
+header .pub{font-size:.72rem;opacity:.85;margin:1px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 nav{display:flex;justify-content:center;gap:4px;flex-wrap:wrap}
-nav button{background:transparent;border:0;color:#cfe8dd;padding:10px 18px;font:inherit;font-size:.95rem;cursor:pointer;border-bottom:3px solid transparent}
+nav button{background:transparent;border:0;color:#cfe8dd;padding:7px 14px;font:inherit;font-size:.88rem;cursor:pointer;border-bottom:3px solid transparent}
 nav button.active{color:#fff;border-color:#ffb199;font-weight:600}
 main{padding-block:16px}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
@@ -142,6 +142,7 @@ tr.out td:last-child{opacity:1}
 .trophy{font-size:2.2rem;line-height:1}
 ul.res{list-style:none;margin:0 auto;padding:0;max-width:440px;text-align:left;font-size:.92rem}
 ul.res li{padding:4px 0;border-top:1px solid rgba(128,128,128,.25)}
+@media(max-height:560px){header .pub{display:none}header{padding-top:calc(env(safe-area-inset-top,0px) + 4px)}nav button{padding:5px 12px}}
 @media(max-width:640px){
   .bracket{flex-direction:column;width:100%;gap:18px}
   .mlist{flex:none}
@@ -444,7 +445,7 @@ function render(){
   state=adm?draft:pub.snapshot;
   const win=state.matches.length?koWinner('final'):null, dt=eventDate();
   $('#hTitle').textContent=state.title||'Table Tennis Tournament';
-  $('#hLoc').textContent=[state.location?'📍 '+state.location:'',dt?'🗓 '+dt:'',win?'🏆 Winner: '+win.name:''].filter(Boolean).join('  ·  ');
+  $('#hLoc').textContent=['📍 '+(state.location||'Location not set'),'🗓 '+(dt||'Date not set'),win?'🏆 Winner: '+win.name:''].filter(Boolean).join('  ·  ');
   document.title=(state.title||'Table Tennis')+' – Fixture';
   $('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
   const tabs=[['fixtures','Fixtures'],['teams','Teams & Players'],['admin','🔒 Admin']];
@@ -553,9 +554,9 @@ function viewAdmin(){
 
   const lockS=started()&&!settingsOpen, dS=lockS?'disabled':'';
   h+=`<div class="card"><h2>Tournament setup</h2>${lockS?lockBanner():''}<div class="row">
-    <label>Tournament title<input id="sTitle" value="${esc(draft.title)}" ${dS}></label>
-    <label>Location<input id="sLoc" value="${esc(draft.location)}" ${dS}></label>
-    <label>Event date<input id="sDate" type="date" value="${esc(draft.date||'')}" ${dS}></label></div>
+    <label>Tournament title *<input id="sTitle" value="${esc(draft.title)}" ${dS}></label>
+    <label>Location *<input id="sLoc" value="${esc(draft.location)}" ${dS}></label>
+    <label>Event date *<input id="sDate" type="date" value="${esc(draft.date||'')}" ${dS}></label></div>
     <div class="row" style="margin-top:12px">
     <label>Number of teams (2–32)<input id="sTeams" type="number" min="2" max="32" value="${draft.teamCount}" ${dS}></label>
     <label>Teams eliminated after the league<input id="sElim" type="number" min="0" max="31" value="${draft.elim}" ${dS}></label>
@@ -674,6 +675,7 @@ function confirmTwice(key,errId,text){
 function applySetup(){
   const t=$('#sTitle').value.trim(), l=$('#sLoc').value.trim();
   const n=parseInt($('#sTeams').value), m=parseInt($('#sM').value), f=parseInt($('#sF').value), el=parseInt($('#sElim').value), lim=parseInt($('#sLimit').value)||0;
+  if(!t||!l||!$('#sDate').value)return say('err-setup','Title, location and event date are required.');
   if(!(n>=2&&n<=32))return say('err-setup','Teams must be between 2 and 32.');
   if(!(m>=0&&f>=0)||m+f<1||m+f>5)return say('err-setup','Males + females per team must be between 1 and 5.');
   if(!(el>=0&&el<n))return say('err-setup','Eliminated teams must be between 0 and '+(n-1)+'.');
