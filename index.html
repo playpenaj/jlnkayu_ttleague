@@ -285,36 +285,14 @@ function resizeTeams(s){
   ensureGroups(s);
 }
 const newId=()=>'ev-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-function ensureEv(s){if(s&&!s.eventId)s.eventId=s.mock?'ev-sample':'ev-legacy';return s}
+function ensureEv(s){if(s&&!s.eventId)s.eventId='ev-legacy';return s}
 function blankState(pinHash){
   const s={v:3,eventId:newId(),title:'Table Tennis Tournament',location:'',date:'',teamCount:10,males:1,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:false};
   resizeTeams(s);return s;
 }
-function mockState(pinHash){
-  const names=['Smash Bros','Spin Doctors','Net Ninjas','Paddle Pros','Rally Kings','Topspin Titans','Loop Legends','Chop Squad','Edge Riders','Serve Sharks'];
-  const M=['Arun','Wei Ming','Daniel','Rahul','Kenji','Marcus','Ivan','Hassan','Lucas','Raj','Tan','Peter','Jun','Ethan','Omar','Vikram','Ryo','Noah','Sam','Felix'];
-  const F=['Mei','Priya','Sara','Aiko','Nina','Lena','Hana','Zoe','Ria','Cleo'];
-  const strength=[10,7,9,3,6,2,8,5,4,1];
-  const s={v:3,eventId:'ev-sample',title:'Singapore Open Table Tennis 2026',location:'Kallang Sports Hall, Singapore',date:'',teamCount:10,males:2,females:1,elim:2,limit:0,pinHash:pinHash||null,teams:[],matches:[],ko:{},mock:true};
-  names.forEach((n,i)=>s.teams.push({id:i+1,name:n,players:[{name:M[2*i],gender:'M'},{name:M[2*i+1],gender:'M'},{name:F[i],gender:'F'}]}));
-  generate(s);
-  s.matches.forEach(m=>{
-    const sa=strength[m.a-1], sb=strength[m.b-1], lose=(m.a+m.b)%3;
-    m.status='Completed';
-    const l1=lose%2;if(sa>sb){m.sa=2;m.sb=l1}else{m.sb=2;m.sa=l1}
-  });
-  s.ko={qf1:{sa:2,sb:1,status:'Completed'},qf2:{sa:2,sb:0,status:'Completed'},qf3:{sa:1,sb:2,status:'Completed'},qf4:{sa:2,sb:0,status:'Completed'},
-        sf1:{sa:3,sb:1,status:'Completed'},sf2:{sa:1,sb:1,status:'Live'},final:{sa:0,sb:0,status:'Upcoming'}};
-  return s;
-}
-/* Older saves: v1 had one big league with no groups; v2 split teams A/B alternately. Sample data is rebuilt; real data keeps its teams. */
+/* Older saves: v1 had one big league with no groups; v2 split teams A/B alternately. Real data keeps its teams. */
 function migrate(s){
   if(!s||s.v===3)return s;
-  if(s.mock){
-    const m=mockState(s.pinHash);
-    ['title','location','date'].forEach(k=>{if(s[k])m[k]=s[k]});
-    return m;
-  }
   const had=s.matches&&s.matches.length;
   const began=(s.matches||[]).some(m=>m.status!=='Upcoming')||Object.values(s.ko||{}).some(k=>k&&k.status&&k.status!=='Upcoming');
   if(!s.v||!began){
@@ -327,12 +305,15 @@ function migrate(s){
   return s;
 }
 async function fetchPub(){
-  const rows=await sb('ttfix_publications?select=published_at,snapshot&order=published_at.desc,id.desc&limit=1');
-  if(rows&&rows.length&&rows[0].snapshot&&rows[0].snapshot.teams){
-    const s=ensureEv(migrate(rows[0].snapshot));s.ko=s.ko||{};
-    return {snapshot:s,publishedAt:rows[0].published_at};
+  const rows=await sb('ttfix_publications?select=published_at,snapshot&order=published_at.desc,id.desc&limit=25');
+  for(const r of (rows||[])){
+    let sn=r.snapshot;
+    if(typeof sn==='string'){try{sn=JSON.parse(sn)}catch(e){sn=null}}
+    if(!sn||typeof sn!=='object'||sn.mock||!Array.isArray(sn.teams))continue;
+    const s=ensureEv(migrate(sn));s.ko=s.ko||{};s.matches=s.matches||[];
+    return {snapshot:s,publishedAt:r.published_at};
   }
-  return {snapshot:ensureEv(mockState()),publishedAt:null};
+  return {snapshot:ensureEv(blankState(null)),publishedAt:null,empty:true};
 }
 function cachePub(){try{localStorage.setItem(CKEY,JSON.stringify(pub))}catch(e){}}
 async function refreshPub(first){
@@ -340,7 +321,9 @@ async function refreshPub(first){
     const p=await fetchPub();dbErr='';
     if(!pub||pub.publishedAt!==p.publishedAt){
       const firstLoad=!pub;
+      const clean=!firstLoad&&draft&&!publishing&&!pubTimer&&stable(draft)===stable(pub.snapshot);
       pub=p;cachePub();
+      if(clean)draft=clone(pub.snapshot);
       if(!draft)draft=loadDraft();
       if(!firstLoad&&unlocked()&&$('#hPub'))$('#hPub').textContent=pub.publishedAt?'Last published: '+fmt(pub.publishedAt):'Not published yet';
       else render();
@@ -350,16 +333,14 @@ async function refreshPub(first){
   }catch(e){
     if(!first)return;
     dbErr=dbMsg(e);
-    if(!pub){try{const c=JSON.parse(localStorage.getItem(CKEY));if(c&&c.snapshot&&c.snapshot.teams)pub=c}catch(x){}}
+    if(!pub){try{const c=JSON.parse(localStorage.getItem(CKEY));if(c&&c.snapshot&&c.snapshot.teams&&!c.snapshot.mock&&!c.empty)pub=c}catch(x){}}
     if(pub&&!draft)draft=loadDraft();
     render();
   }
 }
-function loadDraft(){
-  try{const r=JSON.parse(localStorage.getItem(DKEY));if(r&&r.teams){const m=ensureEv(migrate(r));m.ko=m.ko||{};return m}}catch(e){}
-  return clone(pub.snapshot);
-}
-function saveDraft(){try{localStorage.setItem(DKEY,JSON.stringify(draft))}catch(e){}autoPublish()}
+/* Every change is saved to the database, so the working copy always starts from what is published. */
+function loadDraft(){return clone(pub.snapshot)}
+function saveDraft(){autoPublish()}
 function apin(){try{return sessionStorage.getItem(SKEY)||''}catch(e){return ''}}
 function setApin(v){try{if(v)sessionStorage.setItem(SKEY,v);else sessionStorage.removeItem(SKEY)}catch(e){}}
 function unlocked(){return !!apin()}
@@ -635,7 +616,6 @@ function viewAdmin(){
     <button class="btn" onclick="tryPin()">Unlock</button></div>`;
   const m=adminMsg;
   let h='';
-  if(draft.mock)h+=`<div class="banner mock"><span>📦 Sample (mock) data is loaded: 10 teams in 2 groups, a completed league and the knockout in progress.</span><button class="btn danger" onclick="clearMock()">Delete mock data</button></div>`;
 
   const lockS=started()&&!settingsOpen, dS=lockS?'disabled':'';
   h+=`<div class="card"><h2>Tournament setup</h2>${lockS?lockBanner():''}<div class="row">
@@ -665,8 +645,7 @@ function viewAdmin(){
   h+=`<div class="card"><h2>Fixtures</h2><p class="muted">Generates a round robin inside each group. ${draft.limit?`Each team plays up to ${draft.limit} matches in its group.`:'Every team plays the others in its group once.'} The top teams from each group then go into the knockout tree.</p>
     <div class="err" id="err-fix">${esc(m.fixErr||'')}</div>
     <div class="actions"><button class="btn ${draft.matches.length?'danger':''}" ${dS} onclick="doGenerate()">${draft.matches.length?'Regenerate fixtures (clears results)':'Generate fixtures'}</button>
-    ${draft.matches.length?'<button class="btn dangeralt" '+dS+' onclick="doClear()">Clear fixtures</button>':''}
-    <button class="btn alt" ${dS} onclick="loadMock()">Load sample data</button></div></div>`;
+    ${draft.matches.length?'<button class="btn dangeralt" '+dS+' onclick="doClear()">Clear fixtures</button>':''}</div></div>`;
 
   if(draft.matches.length){
     h+=`<div class="card"><h2>League match status & score</h2><p class="muted">Score = games won by each team (league matches are best of 3). Changes are saved automatically.</p>`+
@@ -693,6 +672,8 @@ function viewAdmin(){
     <div class="actions"><button class="btn" onclick="changePin()">Update PIN</button>
     <button class="btn alt" onclick="lock()">Lock console</button>
     <button class="btn dangeralt" onclick="resetAll()">Reset all data</button></div></div>`;
+  h+=`<div class="card" id="statsCard">${statsHtml()}</div>`;
+  if(!statsTried)setTimeout(loadStats,0);
   return h;
 }
 
@@ -740,11 +721,44 @@ async function unlockMatch(id){
   render();
 }
 
+/* ---------- Visitor analytics ---------- */
+function vid(){
+  try{let v=localStorage.getItem('ttfixture_vid');if(!v||v.length<8){v=(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,12));localStorage.setItem('ttfixture_vid',v)}return v}
+  catch(e){return 'tmp-'+Math.random().toString(36).slice(2,14)}
+}
+function logVisit(role){
+  try{rpc('ttfix_log_visit',{p_visitor:vid(),p_role:role,p_pin:role==='admin'?apin():null}).catch(()=>{})}catch(e){}
+}
+let stats=null, statsErr='', statsBusy=false, statsTried=false;
+async function loadStats(){
+  statsTried=true;statsBusy=true;statsErr='';paintStats();
+  try{stats=(await rpc('ttfix_visit_stats',{p_pin:apin(),p_days:60}))||[]}
+  catch(e){stats=null;statsErr=(e.status===404||e.code==='PGRST202')?'Run the latest supabase-setup.sql to turn on visitor analytics.':(e.status===400?'The PIN was not accepted. Lock the console and enter it again.':dbMsg(e))}
+  statsBusy=false;paintStats();
+}
+function paintStats(){const e=$('#statsCard');if(e)e.innerHTML=statsHtml()}
+function statsHtml(){
+  const head='<h2>Visitor analytics</h2><p class="muted">Opens = times the link was opened. Unique = different browsers or devices, counted per day (Singapore time). Last 60 days.</p>';
+  const btn=`<div class="actions"><button class="btn alt" onclick="loadStats()" ${statsBusy?'disabled':''}>${statsBusy?'Loading…':'Refresh'}</button></div>`;
+  if(statsErr)return head+`<div class="err">${esc(statsErr)}</div>`+btn;
+  if(!stats)return head+'<p class="muted">Loading…</p>';
+  const days={},tot={};
+  stats.forEach(r=>{
+    const o={o:+r.opens,u:+r.uniques};
+    if(r.stat_day)(days[r.stat_day]=days[r.stat_day]||{})[r.stat_role]=o; else tot[r.stat_role]=o;
+  });
+  const c=(x)=>x?`<td>${x.o}</td><td>${x.u}</td>`:'<td>0</td><td>0</td>';
+  const keys=Object.keys(days).sort().reverse().slice(0,30);
+  if(!keys.length)return head+'<p class="muted">No visits recorded yet.</p>'+btn;
+  return head+`<div class="scroll"><table><tr><th class="l" rowspan="2">Day</th><th colspan="2">Guest</th><th colspan="2">Admin</th><th colspan="2">All</th></tr><tr><th>Opens</th><th>Unique</th><th>Opens</th><th>Unique</th><th>Opens</th><th>Unique</th></tr>`+
+    keys.map(k=>`<tr><td class="l" style="white-space:nowrap">${esc(new Date(k+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}))}</td>${c(days[k].guest)}${c(days[k].admin)}${c(days[k].all)}</tr>`).join('')+
+    `<tr><td class="l"><b>Total</b></td>${c(tot.guest)}${c(tot.admin)}${c(tot.all)}</tr></table></div>`+btn;
+}
 async function tryPin(){
   const v=$('#pinIn').value;
   if(!/^\d{8}$/.test(v)){adminMsg={pin:'Enter your 8-digit PIN.'};return render()}
   const r=await checkPin(v);
-  if(r.ok){setApin(v);adminMsg={};render()}
+  if(r.ok){setApin(v);adminMsg={};logVisit('admin');render()}
   else{adminMsg={pin:r.msg||BADPIN};render()}
 }
 function lock(){setApin('');adminMsg={};settingsOpen=false;askSet=false;tab='fixtures';render()}
@@ -808,13 +822,6 @@ function updKo(id,k,v){
   if(id==='final'&&k==='status'&&v==='Completed'&&!x.date)x.date=new Date().toLocaleDateString('en-CA');
   saveDraft();render();
 }
-function loadMock(){
-  if(!confirmTwice('mock','err-fix','This replaces the current draft with sample data. Press "Load sample data" again to confirm.'))return;
-  draft=mockState(draft.pinHash);saveDraft();setMsg({});
-}
-function clearMock(){
-  draft=blankState(draft.pinHash);saveDraft();setMsg({setupOk:'Mock data deleted.'});
-}
 async function changePin(){
   const o=$('#pOld').value,n=$('#pNew').value,c=$('#pNew2').value;
   if(!/^\d{8}$/.test(o))return say('err-pin','Enter your current 8-digit PIN.');
@@ -857,9 +864,11 @@ async function doPublish(){
 
 /* ---------- Boot ---------- */
 async function boot(){
+  try{localStorage.removeItem(DKEY)}catch(e){}
   if(!$('#hTitle'))shell();
   dbErr='';render();
   await refreshPub(true);
+  logVisit(unlocked()?'admin':'guest');
 }
 boot();
 /* Guests pick up new publications without reloading */
